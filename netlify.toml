@@ -1,3 +1,7 @@
 [build]
-  base = "web"
-  publish = "."
+  base = "web-next"
+  command = "npm run build"
+  publish = "out"
+
+[build.environment]
+  NODE_VERSION = "20"
