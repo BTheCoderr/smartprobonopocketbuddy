@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# macOS
+.DS_Store
+
+# Local env
+.env*.local

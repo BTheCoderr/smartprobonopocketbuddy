@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "SmartPocketBuddy",
+    "slug": "SmartPocketBuddy",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1A1E22"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSContactsUsageDescription": "SmartPocketBuddy uses contacts to let you quickly choose an emergency contact.",
+        "NSLocationWhenInUseUsageDescription": "SmartPocketBuddy uses your location to share it with your emergency contact when you use Safety Mode.",
+        "NSMicrophoneUsageDescription": "SmartPocketBuddy uses the microphone to record when you choose to record during a safety event."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1A1E22"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.READ_CONTACTS",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow SmartPocketBuddy to access your contacts so you can quickly choose an emergency contact."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "SmartPocketBuddy uses your location to share it with your emergency contact when you use Safety Mode."
+        }
+      ],
+      "expo-audio"
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
