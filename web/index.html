@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartPocketBuddy — AAA for Legal Situations</title>
+  <style>
+    :root {
+      --primary: #0F2B46;
+      --accent: #3FAE9D;
+      --accent-end: #2F9E8F;
+      --bg: #F7F9FB;
+      --surface: #FFFFFF;
+      --text: #0F2B46;
+      --text-muted: #5C7A85;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    .hero {
+      background: linear-gradient(135deg, var(--primary) 0%, #1a3a5c 100%);
+      color: white;
+      padding: 3rem 1.5rem;
+      text-align: center;
+      border-radius: 0 0 24px 24px;
+    }
+    .hero h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .hero .tagline { opacity: 0.9; font-size: 1rem; }
+    .content {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+    .content h2 { font-size: 1.25rem; color: var(--primary); margin-bottom: 1rem; }
+    .content p { color: var(--text-muted); margin-bottom: 1rem; }
+    .features {
+      list-style: none;
+      margin: 1.5rem 0;
+    }
+    .features li {
+      padding: 0.75rem 0;
+      border-bottom: 1px solid #E2E8EC;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .features li::before {
+      content: "✓";
+      color: var(--accent);
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+    .cta {
+      display: inline-block;
+      margin-top: 1.5rem;
+      padding: 0.75rem 1.5rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent-end));
+      color: white;
+      text-decoration: none;
+      border-radius: 12px;
+      font-weight: 600;
+      transition: transform 0.2s;
+    }
+    .cta:hover { transform: translateY(-2px); }
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <h1>SmartPocketBuddy</h1>
+    <p class="tagline">AAA for legal situations</p>
+  </header>
+  <main class="content">
+    <p>SmartPocketBuddy helps you stay calm and take the right steps during legal or law enforcement interactions.</p>
+    <p>Think of it as AAA for legal situations. One tap launches Safety Mode: your location is shared with a trusted contact, and you get simple, step-by-step guidance designed to reduce stress and keep things calm.</p>
+    <h2>Features</h2>
+    <ul class="features">
+      <li>One-tap Safety Mode</li>
+      <li>Share your location with emergency contacts</li>
+      <li>Calm, on-screen guidance for different situations</li>
+      <li>Optional recording with local storage</li>
+      <li>Event history for your records</li>
+      <li>No legal jargon. No lecturing. Just support when you need it.</li>
+    </ul>
+    <p>Set up your emergency contact once, and you're ready. Works when you're pulled over, calling for help, or in other stressful legal moments.</p>
+    <a href="support.html" class="cta">Get Support →</a>
+  </main>
+  <footer>
+    <a href="support.html">Support</a> · <a href="https://github.com/BTheCoderr/smartprobonopocketbuddy">GitHub</a>
+  </footer>
+</body>
+</html>
