@@ -10,10 +10,10 @@ export const metadata: Metadata = {
 
 export default function MarketingPage() {
   return (
-    <div className="max-w-xl mx-auto px-6 py-12">
-      <header className="bg-gradient-to-br from-[var(--primary)] to-[#1a3a5c] text-white rounded-b-3xl px-6 py-10 text-center">
-        <h1 className="text-2xl font-bold mb-2">SmartPocketBuddy</h1>
-        <p className="opacity-90 text-lg">
+    <div className="max-w-3xl mx-auto py-8 sm:py-12">
+      <header className="bg-gradient-to-br from-[var(--primary)] to-[#1a3a5c] text-white rounded-b-3xl px-6 sm:px-10 py-10 sm:py-12 text-center">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">SmartPocketBuddy</h1>
+        <p className="opacity-90 text-base sm:text-lg">
           Your pocket-sized safety companion during legal interactions
         </p>
       </header>

@@ -7,6 +7,7 @@ import {
   useColorScheme,
   Modal,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import {
   useAudioRecorder,
@@ -21,7 +22,9 @@ import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/types';
 import { saveRecording } from '../storage/recordingStorage';
 import { addSafetyEvent } from '../storage/eventStorage';
-import { getRecordingEnabled } from '../storage/settingsStorage';
+import { waitForRecordingFinalized } from '../utils/recordingUtils';
+import { getRecordingEnabled, getAutoShare } from '../storage/settingsStorage';
+import { getEmergencyContact } from '../storage/contactStorage';
 import { colors } from '../theme/colors';
 
 const CHECKLIST = [
@@ -54,25 +57,45 @@ export function ActiveScreen({ navigation, route }: Props) {
   const recorderState = useAudioRecorderState(recorder);
   const [recordingEnabled, setRecordingEnabled] = useState(true);
   const [autoStarted, setAutoStarted] = useState(false);
+  const [recordingFailed, setRecordingFailed] = useState(false);
   const [ending, setEnding] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [savedUri, setSavedUri] = useState<string | null>(null);
+  const [tempUri, setTempUri] = useState<string | null>(null);
+  const [savedDuration, setSavedDuration] = useState(0);
   const [safeIsRecording, setSafeIsRecording] = useState(false);
   const [safeDuration, setSafeDuration] = useState(0);
+  const [localDuration, setLocalDuration] = useState(0);
+  const recordingStartRef = useRef<number | null>(null);
   const recorderRef = useRef(recorder);
+  const recorderStateRef = useRef(recorderState);
   recorderRef.current = recorder;
+  recorderStateRef.current = recorderState;
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? colors.dark : colors.light;
+
+  const recordingActive = safeIsRecording || (autoStarted && !showShareModal);
+  const elapsedSec = Math.max(safeDuration, localDuration);
+
+  useEffect(() => {
+    if (!recordingActive) return;
+    const id = setInterval(() => {
+      if (recordingStartRef.current != null) {
+        setLocalDuration(Math.floor((Date.now() - recordingStartRef.current) / 1000));
+      }
+    }, 500);
+    return () => clearInterval(id);
+  }, [recordingActive]);
 
   useEffect(() => {
     let cancelled = false;
     const tick = () => {
       if (cancelled) return;
       try {
-        setSafeIsRecording(recorderState.isRecording);
-        setSafeDuration(Math.floor(recorderState.durationMillis / 1000));
+        const state = recorderStateRef.current;
+        setSafeIsRecording(state.isRecording);
+        setSafeDuration(Math.floor(state.durationMillis / 1000));
       } catch {
-        // Native bridge disconnected - keep last values
+        // NativeSharedObjectNotFoundException when recorder disposed during unmount
       }
     };
     tick();
@@ -80,74 +103,114 @@ export function ActiveScreen({ navigation, route }: Props) {
     return () => {
       cancelled = true;
       clearInterval(id);
-      try {
-        const r = recorderRef.current;
-        if (r?.isRecording) r.stop().catch(() => {});
-      } catch {
-        // Native bridge gone - ignore
-      }
+      // Do NOT call recorder.stop() here. React Strict Mode runs cleanup on "unmount"
+      // which would stop recording ~1s after start. User must explicitly tap End.
     };
-  }, [recorderState]);
+  }, []);
 
-  const isRecording = safeIsRecording;
-  const durationSec = safeDuration;
-
-  useEffect(() => {
-    const init = async () => {
+  const startSafetyRecording = async () => {
+    if (autoStarted && !recordingFailed) return;
+    if (__DEV__) console.log('[Active] startSafetyRecording called');
+    try {
       const enabled = await getRecordingEnabled();
       setRecordingEnabled(enabled);
-      if (enabled) {
-        try {
-          const { granted } = await requestRecordingPermissionsAsync();
-          if (granted) {
-            await setAudioModeAsync({
-              allowsRecording: true,
-              playsInSilentMode: true,
-              shouldPlayInBackground: false,
-              interruptionMode: 'duckOthers',
-            });
-            await recorder.prepareToRecordAsync();
-            recorder.record();
-            setAutoStarted(true);
-          }
-        } catch {
-          // Recording failed - continue without
-        }
+      if (__DEV__) console.log('[Active] recording enabled:', enabled);
+      if (!enabled) return;
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (__DEV__) console.log('[Active] mic permission:', granted);
+      if (!granted) {
+        setRecordingFailed(true);
+        return;
       }
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        shouldPlayInBackground: true,
+        interruptionMode: 'duckOthers',
+      });
+      if (__DEV__) console.log('[Active] prepareToRecordAsync');
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      if (__DEV__) console.log('[Active] record() started');
+      recordingStartRef.current = Date.now();
+      setLocalDuration(0);
+      setAutoStarted(true);
+      setRecordingFailed(false);
+    } catch (e) {
+      if (__DEV__) console.warn('[Active] startSafetyRecording error:', e);
+      setRecordingFailed(true);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      startSafetyRecording();
+    }, 150);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
     };
-    init();
   }, []);
+
+  const closeModalAndGoBack = () => {
+    setShowShareModal(false);
+    setTempUri(null);
+    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+  };
 
   const handleEnd = async () => {
     setEnding(true);
+    recordingStartRef.current = null;
     try {
-      const { isRecording: recOn, uri } = safeGetRecordingState(recorder);
+      const { isRecording: recOn } = safeGetRecordingState(recorder);
       if (recOn) {
         try {
           await recorder.stop();
+          await waitForRecordingFinalized(recorder.uri ?? undefined, elapsedSec);
         } catch {
           // Native bridge may be gone
         }
       }
-      const duration = Math.max(durationSec, 1);
-      const timestamp = new Date().toISOString();
+      let uri: string | undefined;
+      try {
+        uri = recorder.uri;
+      } catch {
+        uri = undefined;
+      }
+      const duration = Math.max(elapsedSec, 1);
+      setSavedDuration(duration);
 
       if (uri) {
-        const destUri = await saveRecording(uri, duration, {
+        setTempUri(uri);
+        const autoShare = await getAutoShare();
+        if (autoShare) {
+          const contact = await getEmergencyContact();
+          const contactName = contact?.name ?? 'emergency contact';
+          try {
+            const canShare = await Sharing.isAvailableAsync();
+            if (canShare) {
+              await Sharing.shareAsync(uri, {
+                mimeType: 'audio/m4a',
+                dialogTitle: `Share to ${contactName}`,
+              });
+            }
+          } catch {
+            // User cancelled or share failed
+          }
+        }
+      } else {
+        await addSafetyEvent({
           scenario: 'other',
+          timestamp: new Date().toISOString(),
           locationLink,
-          shareStatus: 'saved',
+          status: locationLink ? 'completed' : 'partial',
         });
-        setSavedUri(destUri);
+        setEnding(false);
+        closeModalAndGoBack();
+        return;
       }
-
-      await addSafetyEvent({
-        scenario: 'other',
-        timestamp,
-        locationLink,
-        recordingUri: uri,
-        status: locationLink ? 'completed' : 'partial',
-      });
 
       setEnding(false);
       setShowShareModal(true);
@@ -157,27 +220,94 @@ export function ActiveScreen({ navigation, route }: Props) {
     }
   };
 
-  const handleShare = async () => {
-    if (!savedUri) {
+  const handleSave = async () => {
+    if (!tempUri) return;
+    try {
+      const destUri = await saveRecording(tempUri, savedDuration, {
+        scenario: 'other',
+        locationLink,
+        shareStatus: 'saved',
+      });
+      await addSafetyEvent({
+        scenario: 'other',
+        timestamp: new Date().toISOString(),
+        locationLink,
+        recordingUri: destUri,
+        status: locationLink ? 'completed' : 'partial',
+      });
       setShowShareModal(false);
-      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
-      return;
+      setTempUri(null);
+      Alert.alert('Saved', 'Recording saved locally on your device.', [
+        { text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Main' }] }) },
+      ]);
+    } catch (e) {
+      Alert.alert('Error', 'Could not save recording.');
     }
+  };
+
+  const handleShareToContact = async () => {
+    if (!tempUri) return;
+    try {
+      const contact = await getEmergencyContact();
+      const contactName = contact?.name ?? 'emergency contact';
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(tempUri, {
+          mimeType: 'audio/m4a',
+          dialogTitle: `Share to ${contactName}`,
+        });
+      }
+      const destUri = await saveRecording(tempUri, savedDuration, {
+        scenario: 'other',
+        locationLink,
+        shareStatus: 'shared',
+      });
+      await addSafetyEvent({
+        scenario: 'other',
+        timestamp: new Date().toISOString(),
+        locationLink,
+        recordingUri: destUri,
+        status: locationLink ? 'completed' : 'partial',
+      });
+      closeModalAndGoBack();
+    } catch (e) {
+      Alert.alert('Share', 'Could not share recording.');
+    }
+  };
+
+  const handleShare = async () => {
+    if (!tempUri) return;
     try {
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(savedUri, { mimeType: 'audio/m4a' });
+        await Sharing.shareAsync(tempUri, { mimeType: 'audio/m4a' });
       }
-    } catch {
-      // User cancelled
+      const destUri = await saveRecording(tempUri, savedDuration, {
+        scenario: 'other',
+        locationLink,
+        shareStatus: 'shared',
+      });
+      await addSafetyEvent({
+        scenario: 'other',
+        timestamp: new Date().toISOString(),
+        locationLink,
+        recordingUri: destUri,
+        status: locationLink ? 'completed' : 'partial',
+      });
+      closeModalAndGoBack();
+    } catch (e) {
+      Alert.alert('Share', 'Could not share recording.');
     }
-    setShowShareModal(false);
-    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
   };
 
-  const handleDone = () => {
-    setShowShareModal(false);
-    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+  const handleDelete = () => {
+    addSafetyEvent({
+      scenario: 'other',
+      timestamp: new Date().toISOString(),
+      locationLink,
+      status: locationLink ? 'completed' : 'partial',
+    });
+    closeModalAndGoBack();
   };
 
   const formatTime = (secs: number) => {
@@ -188,12 +318,36 @@ export function ActiveScreen({ navigation, route }: Props) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.indicatorRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        {recordingEnabled && isRecording && (
+      <View
+        style={[
+          styles.indicatorRow,
+          {
+            backgroundColor: theme.surface,
+            borderColor: recordingActive ? theme.primaryAccent : theme.border,
+            borderWidth: recordingActive ? 2 : 1,
+          },
+        ]}
+      >
+        {recordingEnabled && recordingActive && (
           <View style={[styles.recDot, { backgroundColor: theme.recordingDot }]} />
         )}
-        <Text style={[styles.timer, { color: theme.text }]}>{formatTime(durationSec)}</Text>
+        <Text style={[styles.timer, { color: theme.text }]}>{formatTime(elapsedSec)}</Text>
       </View>
+      {recordingEnabled && recordingActive && (
+        <Text style={[styles.recordingHint, { color: theme.textMuted }]}>
+          Recording… Tap End Safety Mode when you&apos;re done.
+        </Text>
+      )}
+      {recordingEnabled && recordingFailed && (
+        <TouchableOpacity
+          style={[styles.retryButton, { backgroundColor: theme.surface, borderColor: theme.primaryAccent }]}
+          onPress={startSafetyRecording}
+        >
+          <Text style={[styles.retryText, { color: theme.primaryAccent }]}>
+            Recording didn&apos;t start — tap here to try again
+          </Text>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.checklistContainer}>
         <Text style={[styles.checklistTitle, { color: theme.textMuted }]}>Stay calm</Text>
@@ -228,24 +382,46 @@ export function ActiveScreen({ navigation, route }: Props) {
       <Modal visible={showShareModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Safety Mode ended</Text>
-            <Text style={[styles.modalSubtext, { color: theme.textMuted }]}>
-              {savedUri ? 'Recording saved locally.' : 'Session saved.'}
-            </Text>
-            {savedUri && (
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Recording complete</Text>
+            {tempUri ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: theme.primary }]}
+                  onPress={handleSave}
+                >
+                  <Text style={styles.modalButtonText}>Save (local)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, { borderColor: theme.border }]}
+                  onPress={handleShareToContact}
+                >
+                  <Text style={[styles.modalButtonTextAlt, { color: theme.text }]}>
+                    Share to emergency contact
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, { borderColor: theme.border }]}
+                  onPress={handleShare}
+                >
+                  <Text style={[styles.modalButtonTextAlt, { color: theme.text }]}>Share</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, { borderColor: theme.border }]}
+                  onPress={handleDelete}
+                >
+                  <Text style={[styles.modalButtonTextAlt, { color: theme.textMuted }]}>
+                    Delete recording
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
               <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: theme.primaryAccent }]}
-                onPress={handleShare}
+                style={[styles.modalButton, { borderColor: theme.border }]}
+                onPress={closeModalAndGoBack}
               >
-                <Text style={styles.modalButtonText}>Share</Text>
+                <Text style={[styles.modalButtonTextAlt, { color: theme.text }]}>Done</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              style={[styles.modalButton, { borderColor: theme.border }]}
-              onPress={handleDone}
-            >
-              <Text style={[styles.modalButtonTextAlt, { color: theme.text }]}>Done</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -260,35 +436,64 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    paddingVertical: 16,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingVertical: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   recDot: { width: 6, height: 6, borderRadius: 3 },
   timer: { fontSize: 28, fontWeight: '600' },
+  recordingHint: { fontSize: 14, textAlign: 'center', marginTop: 8 },
+  retryButton: {
+    marginTop: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: 'center',
+  },
+  retryText: { fontSize: 15, fontWeight: '600' },
   checklistContainer: { flex: 1, justifyContent: 'center', marginVertical: 24 },
   checklistTitle: { fontSize: 14, marginBottom: 16, textAlign: 'center' },
   checklistItem: {
     paddingVertical: 16,
     paddingHorizontal: 20,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   checklistText: { fontSize: 17, fontWeight: '500' },
   scriptCard: {
-    paddingVertical: 16,
+    paddingVertical: 18,
     paddingHorizontal: 20,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   scriptLabel: { fontSize: 13, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
   scriptText: { fontSize: 16, lineHeight: 24, fontStyle: 'italic' },
   endButton: {
     paddingVertical: 20,
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
   endButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '600' },
   modalOverlay: {

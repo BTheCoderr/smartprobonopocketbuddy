@@ -11,6 +11,7 @@ export interface SafetyEvent {
   locationLink?: string;
   recordingUri?: string;
   status: 'completed' | 'partial';
+  label?: string;
 }
 
 export async function getSafetyEvents(): Promise<SafetyEvent[]> {
@@ -38,4 +39,34 @@ export async function clearRecordingRefsFromEvents(): Promise<void> {
   const events = await getSafetyEvents();
   const cleaned = events.map(({ recordingUri, ...rest }) => rest);
   await AsyncStorage.setItem(EVENTS_KEY, JSON.stringify(cleaned));
+}
+
+/** Remove recordingUri from a single event */
+export async function clearRecordingFromEvent(eventId: string): Promise<void> {
+  const events = await getSafetyEvents();
+  const updated = events.map((evt) =>
+    evt.id === eventId ? { ...evt, recordingUri: undefined } : evt
+  );
+  await AsyncStorage.setItem(EVENTS_KEY, JSON.stringify(updated));
+}
+
+/** Delete all events (erase entire history) */
+export async function deleteAllEvents(): Promise<void> {
+  await AsyncStorage.setItem(EVENTS_KEY, '[]');
+}
+
+/** Delete a single event by id */
+export async function deleteEvent(eventId: string): Promise<void> {
+  const events = await getSafetyEvents();
+  const updated = events.filter((evt) => evt.id !== eventId);
+  await AsyncStorage.setItem(EVENTS_KEY, JSON.stringify(updated));
+}
+
+/** Update an event's label (custom name) */
+export async function updateEventLabel(eventId: string, label: string): Promise<void> {
+  const events = await getSafetyEvents();
+  const updated = events.map((evt) =>
+    evt.id === eventId ? { ...evt, label: label.trim() || undefined } : evt
+  );
+  await AsyncStorage.setItem(EVENTS_KEY, JSON.stringify(updated));
 }

@@ -17,6 +17,7 @@ export function TabNavigator() {
 
   return (
     <Tab.Navigator
+      lazy
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.primaryAccent,

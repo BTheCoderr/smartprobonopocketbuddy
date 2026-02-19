@@ -16,8 +16,7 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { TabParamList, RootStackParamList } from '../navigation/types';
 import { getEmergencyContact } from '../storage/contactStorage';
-import { hasSeenRecordingDisclosure, setRecordingDisclosureSeen } from '../storage/settingsStorage';
-import { getRecordingEnabled } from '../storage/settingsStorage';
+import { hasSeenRecordingDisclosure, setRecordingDisclosureSeen, getRecordingEnabled } from '../storage/settingsStorage';
 import { getCurrentLocation } from '../utils/location';
 import { formatLocationForMaps } from '../utils/location';
 import { openSmsSafetyMode } from '../utils/sms';
@@ -88,12 +87,14 @@ export function HomeScreen({ navigation }: Props) {
       const loc = await getCurrentLocation();
       const locationLink = loc ? formatLocationForMaps(loc.latitude, loc.longitude) : undefined;
       const contact = await getEmergencyContact();
-      if (contact?.phone && locationLink) {
-        await openSmsSafetyMode(contact.phone, locationLink);
-      }
+
       setShowConfirm(false);
       setStarting(false);
       navigation.navigate('Active', { locationLink: locationLink ?? undefined });
+
+      if (contact?.phone && locationLink) {
+        await openSmsSafetyMode(contact.phone, locationLink);
+      }
     } catch {
       setStarting(false);
     }
@@ -106,14 +107,16 @@ export function HomeScreen({ navigation }: Props) {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Image
-          source={require('../../assets/logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-          accessible
-          accessibilityLabel="Smart ProBono logo"
-        />
         <Text style={[styles.appTitle, { color: theme.text }]}>SmartPocketBuddy</Text>
+        <View style={[styles.logoContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+            accessible
+            accessibilityLabel="Smart ProBono logo"
+          />
+        </View>
         <Text style={[styles.subtitle, { color: theme.textMuted }]}>
           {hasContact ? '2 taps to activate Safety Mode' : 'Set your emergency contact to get started'}
         </Text>
@@ -170,7 +173,7 @@ export function HomeScreen({ navigation }: Props) {
             <View style={styles.bulletList}>
               <Text style={[styles.bullet, { color: theme.text }]}>• Share location with emergency contact</Text>
               {recordingEnabled && (
-                <Text style={[styles.bullet, { color: theme.text }]}>• Start recording</Text>
+                <Text style={[styles.bullet, { color: theme.text }]}>• Start audio recording</Text>
               )}
               <Text style={[styles.bullet, { color: theme.text }]}>• Display calm guidance</Text>
             </View>
@@ -209,16 +212,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SECTION_SPACING * 2,
   },
-  logo: {
-    width: 80,
-    height: 80,
-    marginBottom: SECTION_SPACING,
-  },
   appTitle: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
-    marginBottom: 8,
+    marginBottom: SECTION_SPACING,
     textAlign: 'center',
+  },
+  logoContainer: {
+    padding: 20,
+    borderRadius: 18,
+    borderWidth: 1,
+    marginBottom: SECTION_SPACING,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  logo: {
+    width: 110,
+    height: 110,
   },
   subtitle: {
     fontSize: 16,

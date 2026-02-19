@@ -32,9 +32,10 @@ export function clearCurrentSessionRecording(): void {
 export async function saveRecording(
   uri: string,
   durationSeconds: number,
-  options?: { scenario?: string; locationLink?: string; shareStatus?: RecordingShareStatus }
+  options?: { scenario?: string; locationLink?: string; shareStatus?: RecordingShareStatus; extension?: string }
 ): Promise<string> {
-  const filename = `recording_${Date.now()}.m4a`;
+  const ext = options?.extension ?? (uri.toLowerCase().endsWith('.mp4') ? '.mp4' : '.m4a');
+  const filename = `recording_${Date.now()}${ext}`;
   const destUri = `${FileSystem.documentDirectory}${filename}`;
   await FileSystem.copyAsync({ from: uri, to: destUri });
   const meta: RecordingMeta = {
@@ -61,4 +62,11 @@ export async function getRecordings(): Promise<RecordingMeta[]> {
   } catch {
     return [];
   }
+}
+
+/** Remove a recording from the list by URI */
+export async function removeRecordingByUri(uri: string): Promise<void> {
+  const list = await getRecordings();
+  const updated = list.filter((r) => r.uri !== uri);
+  await AsyncStorage.setItem(RECORDINGS_KEY, JSON.stringify(updated));
 }

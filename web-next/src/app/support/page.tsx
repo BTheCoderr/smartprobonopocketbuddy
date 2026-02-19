@@ -8,9 +8,9 @@ export const metadata: Metadata = {
 
 export default function SupportPage() {
   return (
-    <div className="max-w-xl mx-auto px-6 py-12">
-      <header className="bg-gradient-to-br from-[var(--primary)] to-[#1a3a5c] text-white rounded-b-3xl px-6 py-8 text-center">
-        <h1 className="text-xl font-bold">SmartPocketBuddy Support</h1>
+    <div className="max-w-3xl mx-auto py-8 sm:py-12">
+      <header className="bg-gradient-to-br from-[var(--primary)] to-[#1a3a5c] text-white rounded-b-3xl px-6 sm:px-10 py-8 sm:py-10 text-center">
+        <h1 className="text-xl sm:text-2xl font-bold">SmartPocketBuddy Support</h1>
       </header>
 
       <main className="mt-6 space-y-6">

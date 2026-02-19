@@ -4,6 +4,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useColorScheme } from 'react-native';
 import { RootStackParamList } from './types';
 import { TabNavigator } from './TabNavigator';
+import { GateScreen } from '../screens/GateScreen';
+import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { SetupContactScreen } from '../screens/SetupContactScreen';
 import { ActiveScreen } from '../screens/ActiveScreen';
 import { RecordingScreen } from '../screens/RecordingScreen';
@@ -31,6 +33,7 @@ export function RootNavigator() {
   return (
     <NavigationContainer theme={navTheme}>
       <Stack.Navigator
+        initialRouteName="Gate"
         screenOptions={{
           headerStyle: { backgroundColor: theme.surface },
           headerTintColor: theme.text,
@@ -41,6 +44,16 @@ export function RootNavigator() {
           animation: 'slide_from_right',
         }}
       >
+        <Stack.Screen
+          name="Gate"
+          component={GateScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Onboarding"
+          component={OnboardingScreen}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="Main"
           component={TabNavigator}
