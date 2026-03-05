@@ -43,7 +43,7 @@ export function GateScreen({ navigation }: Props) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <Text style={[styles.title, { color: theme.text }]}>SmartPocketBuddy</Text>
+      <Text style={[styles.title, { color: theme.text }]}>SmartProBono</Text>
       <View style={[styles.logoContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Image
           source={require('../../assets/logo.png')}

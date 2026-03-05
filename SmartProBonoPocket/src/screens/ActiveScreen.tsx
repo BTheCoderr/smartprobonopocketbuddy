@@ -76,13 +76,16 @@ export function ActiveScreen({ navigation, route }: Props) {
   const recordingActive = safeIsRecording || (autoStarted && !showShareModal);
   const elapsedSec = Math.max(safeDuration, localDuration);
 
+  // Timer: update every 250ms when recording is active (localDuration drives display when native duration lags)
   useEffect(() => {
     if (!recordingActive) return;
-    const id = setInterval(() => {
+    const tick = () => {
       if (recordingStartRef.current != null) {
         setLocalDuration(Math.floor((Date.now() - recordingStartRef.current) / 1000));
       }
-    }, 500);
+    };
+    tick(); // immediate first tick
+    const id = setInterval(tick, 250);
     return () => clearInterval(id);
   }, [recordingActive]);
 

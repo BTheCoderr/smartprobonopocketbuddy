@@ -26,7 +26,7 @@ import {
   setPipModeEnabled,
   type PresetMode,
 } from '../storage/settingsStorage';
-import { deleteAllRecordings } from '../utils/recordingUtils';
+import { deleteAllRecordings, resetAppForScreenshots } from '../utils/recordingUtils';
 import { colors } from '../theme/colors';
 
 type Props = {
@@ -192,10 +192,45 @@ export function SettingsScreen({ navigation }: Props) {
         Keeps event history. Or select items in History to delete specific ones.
       </Text>
 
+      <Text style={[styles.sectionTitle, { color: theme.text }]}>Screenshots</Text>
+      <TouchableOpacity
+        style={[styles.deleteButton, { borderColor: theme.border }]}
+        onPress={() => {
+          Alert.alert(
+            'Reset app for screenshots',
+            'This will clear all data and return you to the first-run experience. Use this before capturing App Store screenshots.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Reset',
+                style: 'destructive',
+                onPress: () => {
+                  resetAppForScreenshots()
+                    .then(() => {
+                      navigation.reset({ index: 0, routes: [{ name: 'Gate' }] });
+                    })
+                    .catch((err) => {
+                      console.error('resetAppForScreenshots failed:', err);
+                      Alert.alert('Error', 'Could not reset. Please try again.');
+                    });
+                },
+              },
+            ]
+          );
+        }}
+      >
+        <Text style={[styles.deleteButtonText, { color: theme.textMuted }]}>
+          Reset app for screenshots
+        </Text>
+      </TouchableOpacity>
+      <Text style={[styles.rowHint, { color: theme.textMuted, marginTop: 4 }]}>
+        Clears all data and shows onboarding again. For App Store submission.
+      </Text>
+
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Siri</Text>
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.privacyText, { color: theme.text }]}>
-          "Hey Siri, start SmartPocketBuddy recording" — Coming in a future update. Siri Shortcuts require a full app build (not Expo Go).
+          "Hey Siri, start SmartProBono recording" — Coming in a future update. Siri Shortcuts require a full app build (not Expo Go).
         </Text>
       </View>
     </ScrollView>

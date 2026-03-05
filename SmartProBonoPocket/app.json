@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "SmartPocketBuddy",
-    "slug": "smartpocketbuddy",
+    "name": "SmartProBono",
+    "slug": "smartprobono",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,9 +14,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSContactsUsageDescription": "SmartPocketBuddy uses contacts to let you quickly choose an emergency contact.",
-        "NSLocationWhenInUseUsageDescription": "SmartPocketBuddy uses your location to share it with your emergency contact when you use Safety Mode.",
-        "NSMicrophoneUsageDescription": "SmartPocketBuddy uses the microphone to record when you choose to record during a safety event.",
+        "NSContactsUsageDescription": "SmartProBono uses contacts to let you quickly choose an emergency contact.",
+        "NSLocationWhenInUseUsageDescription": "SmartProBono uses your location to share it with your emergency contact when you use Safety Mode.",
+        "NSMicrophoneUsageDescription": "SmartProBono uses the microphone to record when you choose to record during a safety event.",
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "audio"
@@ -32,39 +32,42 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
+        "android.permission.CAMERA",
         "android.permission.READ_CONTACTS",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.RECORD_AUDIO",
         "android.permission.WRITE_CONTACTS",
         "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
         "android.permission.READ_CONTACTS",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.RECORD_AUDIO",
         "android.permission.WRITE_CONTACTS",
         "android.permission.MODIFY_AUDIO_SETTINGS"
-      ]
+      ],
+      "package": "com.bferrell514.smartpocketbuddy"
     },
     "plugins": [
       [
         "expo-contacts",
         {
-          "contactsPermission": "Allow SmartPocketBuddy to access your contacts so you can quickly choose an emergency contact."
+          "contactsPermission": "Allow SmartProBono to access your contacts so you can quickly choose an emergency contact."
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "SmartPocketBuddy uses your location to share it with your emergency contact when you use Safety Mode."
+          "locationWhenInUsePermission": "SmartProBono uses your location to share it with your emergency contact when you use Safety Mode."
         }
       ],
       "expo-audio",
       [
         "expo-camera",
         {
-          "cameraPermission": "SmartPocketBuddy uses the camera to record video during safety events when you enable it in settings.",
-          "microphonePermission": "SmartPocketBuddy uses the microphone when recording video."
+          "cameraPermission": "SmartProBono uses the camera to record video during safety events when you enable it in settings.",
+          "microphonePermission": "SmartProBono uses the microphone when recording video."
         }
       ]
     ],

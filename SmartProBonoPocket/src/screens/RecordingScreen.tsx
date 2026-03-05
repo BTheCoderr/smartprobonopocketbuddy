@@ -62,6 +62,7 @@ export function RecordingScreen({ navigation, route }: Props) {
   const [hasStarted, setHasStarted] = useState(false);
   const [videoRecording, setVideoRecording] = useState(false);
   const [cameraFacing, setCameraFacing] = useState<'front' | 'back'>('back');
+  const [cameraReady, setCameraReady] = useState(false);
   const [stopping, setStopping] = useState(false);
   const stoppingRef = useRef(false);
   const recordingStartRef = useRef<number | null>(null);
@@ -85,6 +86,7 @@ export function RecordingScreen({ navigation, route }: Props) {
   useFocusEffect(
     useCallback(() => {
       getPresetMode().then(setPreset);
+      return () => setCameraReady(false); // reset when leaving so camera reinitializes on return
     }, [])
   );
 
@@ -112,11 +114,13 @@ export function RecordingScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     if (!isRecording || showActions) return;
-    const id = setInterval(() => {
+    const tick = () => {
       if (recordingStartRef.current != null) {
         setLocalDuration(Math.floor((Date.now() - recordingStartRef.current) / 1000));
       }
-    }, 500);
+    };
+    tick(); // immediate first tick
+    const id = setInterval(tick, 250);
     return () => clearInterval(id);
   }, [isRecording, showActions]);
 
@@ -127,6 +131,11 @@ export function RecordingScreen({ navigation, route }: Props) {
         Alert.alert('Camera access', 'Allow camera access to record video.');
         return;
       }
+    }
+    // Wait for camera to be ready (iOS fix: recordAsync can fail if started too soon)
+    if (!cameraReady) {
+      Alert.alert('Camera', 'Please wait for the camera to finish loading.');
+      return;
     }
     try {
       if (cameraRef.current) {
@@ -186,12 +195,20 @@ export function RecordingScreen({ navigation, route }: Props) {
     if (stoppingRef.current) return;
     stoppingRef.current = true;
     setStopping(true);
-    try {
-      cameraRef.current?.stopRecording();
-    } catch {
-      setVideoRecording(false);
+    const cam = cameraRef.current;
+    if (!cam) {
       stoppingRef.current = false;
       setStopping(false);
+      setVideoRecording(false);
+      return;
+    }
+    try {
+      cam.stopRecording();
+    } catch (e) {
+      if (__DEV__) console.warn('[Recording] stopVideoRecording error:', e);
+      stoppingRef.current = false;
+      setStopping(false);
+      setVideoRecording(false);
     }
   };
 
@@ -237,16 +254,17 @@ export function RecordingScreen({ navigation, route }: Props) {
     recordingStartRef.current = null;
     setLocalDuration(0);
     setHasStarted(false);
+    const rec = recorder;
     try {
       try {
-        await recorder.stop();
-        await waitForRecordingFinalized(recorder.uri ?? undefined, elapsed);
+        await rec.stop();
+        await waitForRecordingFinalized(rec.uri ?? undefined, elapsed);
       } catch {
         // Native bridge may have disconnected
       }
       let uri: string | undefined;
       try {
-        uri = recorder.uri;
+        uri = rec.uri;
       } catch {
         uri = undefined;
       }
@@ -378,14 +396,50 @@ export function RecordingScreen({ navigation, route }: Props) {
   };
 
   if (isVideoMode && !showActions) {
+    // Camera permission required for video - show prompt if not granted
+    if (!permission) {
+      return (
+        <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center' }]}>
+          <ActivityIndicator size="large" color={theme.primaryAccent} />
+          <Text style={[styles.disclaimer, { color: theme.textMuted, marginTop: 16 }]}>Loading camera…</Text>
+        </View>
+      );
+    }
+    if (!permission.granted) {
+      return (
+        <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', padding: 24 }]}>
+          <Text style={[styles.disclaimer, { color: theme.text }]}>
+            Camera access is needed to record video.
+          </Text>
+          <TouchableOpacity
+            style={[styles.startButton, { backgroundColor: theme.primaryAccent, marginTop: 24 }]}
+            onPress={requestPermission}
+          >
+            <Text style={styles.startButtonText}>Allow camera</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.backButton, { borderColor: theme.border, backgroundColor: theme.surface, marginTop: 16 }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={[styles.backButtonText, { color: theme.text }]}>Go back</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
     return (
-      <View style={styles.videoContainer}>
-        <CameraView
-          ref={cameraRef}
-          style={styles.camera}
-          mode="video"
-          facing={cameraFacing}
-        />
+      <View style={styles.videoContainer} collapsable={false}>
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <CameraView
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            mode="video"
+            facing={cameraFacing}
+            onCameraReady={() => {
+              // 300ms delay helps iOS: recordAsync can fail if started too soon after camera ready
+              setTimeout(() => setCameraReady(true), 300);
+            }}
+          />
+        </View>
         <View style={styles.modeBadge}>
           <Text style={styles.modeBadgeText}>{modeLabel}</Text>
         </View>
@@ -397,7 +451,7 @@ export function RecordingScreen({ navigation, route }: Props) {
             <Ionicons name="camera-reverse-outline" size={24} color="#fff" />
           </TouchableOpacity>
         )}
-        <View style={styles.videoOverlay}>
+        <View style={[styles.videoOverlay, { zIndex: 10 }]} pointerEvents="box-none">
           <Text style={[styles.disclaimer, { color: theme.textMuted }]}>
             {RECORDING_DISCLAIMER}
           </Text>
@@ -405,8 +459,11 @@ export function RecordingScreen({ navigation, route }: Props) {
             <TouchableOpacity
               style={[styles.startButton, { backgroundColor: theme.primaryAccent }]}
               onPress={startVideoRecording}
+              disabled={!cameraReady}
             >
-              <Text style={styles.startButtonText}>Start Video</Text>
+              <Text style={styles.startButtonText}>
+                {cameraReady ? 'Start Video' : 'Loading camera…'}
+              </Text>
             </TouchableOpacity>
           ) : (
             <>
@@ -418,6 +475,7 @@ export function RecordingScreen({ navigation, route }: Props) {
                 style={[styles.stopButton, styles.stopButtonRed]}
                 onPress={stopVideoRecording}
                 disabled={stopping}
+                activeOpacity={0.9}
               >
                 {stopping ? (
                   <ActivityIndicator color="#fff" size="small" />

@@ -29,7 +29,7 @@ import {
 import { colors } from '../theme/colors';
 
 const DISCLOSURE_TEXT =
-  'SmartPocketBuddy offers optional audio recording during Safety Mode. Recording laws vary by state. Use responsibly.';
+  'SmartProBono offers optional audio recording during Safety Mode. Recording laws vary by state. Use responsibly.';
 const LEARN_MORE_URL = 'https://www.aclu.org/know-your-rights/recording-police';
 
 type Props = {
@@ -145,7 +145,7 @@ export function OnboardingScreen({ navigation }: Props) {
 
         {step === 0 && (
           <View style={styles.stepContent}>
-            <Text style={[styles.title, { color: theme.text }]}>SmartPocketBuddy</Text>
+            <Text style={[styles.title, { color: theme.text }]}>SmartProBono</Text>
             <View style={[styles.logoContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Image
                 source={require('../../assets/logo.png')}

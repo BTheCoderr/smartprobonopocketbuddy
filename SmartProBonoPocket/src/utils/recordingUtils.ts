@@ -91,3 +91,19 @@ export async function eraseEverything(): Promise<void> {
   await deleteAllRecordings();
   await deleteAllEvents();
 }
+
+/**
+ * Reset app to first-run state: wipes all data and clears onboarding.
+ * Use this before taking App Store screenshots.
+ */
+export async function resetAppForScreenshots(): Promise<void> {
+  await deleteAllRecordings();
+  await deleteAllEvents();
+  const keys = await AsyncStorage.getAllKeys();
+  const appKeys = keys.filter(
+    (k) => k.startsWith('@smartpocketbuddy') || k.startsWith('@smartprobono')
+  );
+  if (appKeys.length > 0) {
+    await AsyncStorage.multiRemove(appKeys);
+  }
+}

@@ -24,7 +24,7 @@ import { colors } from '../theme/colors';
 import { Button } from '../components/Button';
 
 const DISCLOSURE_TEXT =
-  'SmartPocketBuddy offers optional audio recording. Recording laws vary by state. Use responsibly and do not interfere with law enforcement.';
+  'SmartProBono offers optional audio recording. Recording laws vary by state. Use responsibly and do not interfere with law enforcement.';
 const LEARN_MORE_URL = 'https://www.aclu.org/know-your-rights/recording-police';
 
 type Props = {
@@ -107,7 +107,7 @@ export function HomeScreen({ navigation }: Props) {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.appTitle, { color: theme.text }]}>SmartPocketBuddy</Text>
+        <Text style={[styles.appTitle, { color: theme.text }]}>SmartProBono</Text>
         <View style={[styles.logoContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Image
             source={require('../../assets/logo.png')}
