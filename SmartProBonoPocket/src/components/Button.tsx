@@ -4,9 +4,12 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  ViewStyle,
-  TextStyle,
+  type StyleProp,
+  type ViewStyle,
+  type TextStyle,
+  useColorScheme,
 } from 'react-native';
+import { colors } from '../theme/colors';
 
 type Variant = 'primary' | 'secondary' | 'ghost';
 
@@ -16,7 +19,7 @@ type Props = {
   variant?: Variant;
   loading?: boolean;
   disabled?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   textStyle?: TextStyle;
 };
 
@@ -29,6 +32,8 @@ export function Button({
   style,
   textStyle,
 }: Props) {
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === 'dark' ? colors.dark : colors.light;
   const isPrimary = variant === 'primary';
 
   return (
@@ -38,22 +43,22 @@ export function Button({
       disabled={disabled || loading}
       style={[
         styles.base,
-        isPrimary && styles.primary,
-        variant === 'secondary' && styles.secondary,
-        variant === 'ghost' && styles.ghost,
+        isPrimary && { backgroundColor: theme.primaryAccent },
+        variant === 'secondary' && { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.border },
+        variant === 'ghost' && { backgroundColor: 'transparent' },
         disabled && styles.disabled,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isPrimary ? '#FFFFFF' : undefined} size="small" />
+        <ActivityIndicator color={isPrimary ? theme.onPrimary : theme.primaryAccent} size="small" />
       ) : (
         <Text
           style={[
             styles.text,
-            isPrimary && styles.primaryText,
-            variant === 'secondary' && styles.secondaryText,
-            variant === 'ghost' && styles.ghostText,
+            isPrimary && { color: theme.onPrimary },
+            variant === 'secondary' && { color: theme.text },
+            variant === 'ghost' && { color: theme.primaryAccent },
             textStyle,
           ]}
         >
@@ -73,31 +78,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 56,
   },
-  primary: {
-    backgroundColor: '#3FAE9D',
-  },
-  secondary: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#E2E8EC',
-  },
-  ghost: {
-    backgroundColor: 'transparent',
-  },
   disabled: {
     opacity: 0.6,
   },
   text: {
     fontSize: 17,
     fontWeight: '600',
-  },
-  primaryText: {
-    color: '#FFFFFF',
-  },
-  secondaryText: {
-    color: '#0F2B46',
-  },
-  ghostText: {
-    color: '#3FAE9D',
   },
 });

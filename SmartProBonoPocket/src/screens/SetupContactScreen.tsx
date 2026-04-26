@@ -12,42 +12,47 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import { InlineError } from '../components/InlineError';
+import { useToast } from '../components/Toast';
 import * as Contacts from 'expo-contacts';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import {
   getEmergencyContact,
-  getSecondaryContact,
+  getAdditionalContacts,
   getMedicalNotes,
   saveEmergencyContact,
-  saveSecondaryContact,
+  saveAdditionalContacts,
   saveMedicalNotes,
   StoredContact,
+  MAX_ADDITIONAL_CONTACTS,
 } from '../storage/contactStorage';
+import { trackEvent, trackError } from '../lib/analytics';
+import { retryAsync } from '../utils/retry';
 import { colors } from '../theme/colors';
+import { Button } from '../components/Button';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'SetupContact'>;
 };
 
 export function SetupContactScreen({ navigation }: Props) {
+  const toast = useToast();
   const [primary, setPrimary] = useState<StoredContact>({ name: '', phone: '' });
-  const [secondary, setSecondary] = useState<StoredContact | null>(null);
-  const [showSecondary, setShowSecondary] = useState(false);
+  const [additional, setAdditional] = useState<StoredContact[]>([]);
   const [medicalNotes, setMedicalNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? colors.dark : colors.light;
 
   useEffect(() => {
     const load = async () => {
       const p = await getEmergencyContact();
-      const s = await getSecondaryContact();
+      const add = await getAdditionalContacts();
       const notes = await getMedicalNotes();
       if (p) setPrimary(p);
-      if (s) {
-        setSecondary(s);
-        setShowSecondary(true);
-      }
+      setAdditional(add);
       setMedicalNotes(notes);
     };
     load();
@@ -75,13 +80,25 @@ export function SetupContactScreen({ navigation }: Props) {
 
   const save = async () => {
     if (!primary.name.trim() || !primary.phone.trim()) {
-      Alert.alert('Required', 'Please enter at least name and phone for your emergency contact.');
+      setValidationError('Please enter at least name and phone for your emergency contact.');
       return;
     }
-    await saveEmergencyContact(primary);
-    await saveSecondaryContact(secondary ?? null);
-    await saveMedicalNotes(medicalNotes);
-    navigation.goBack();
+    setValidationError(null);
+    setSaving(true);
+    try {
+      await retryAsync(async () => {
+        await saveEmergencyContact(primary);
+        await saveAdditionalContacts(additional);
+        await saveMedicalNotes(medicalNotes);
+      });
+      trackEvent('contact.save_success', { additionalCount: additional.length });
+      navigation.goBack();
+    } catch (e) {
+      trackError('contact.save_failed', e);
+      toast.show({ type: 'error', message: 'Could not save contacts. Please try again.' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -98,12 +115,14 @@ export function SetupContactScreen({ navigation }: Props) {
       >
         <Text style={[styles.title, { color: theme.text }]}>Emergency Contact</Text>
         <Text style={[styles.subtitle, { color: theme.textMuted }]}>
-          This person will receive your location and an alert when you use Safety Mode.
+          Primary first, then trusted contacts in order—same list for Safety, Travel, and Kid Track alerts.
         </Text>
 
         <TouchableOpacity
           style={[styles.pickButton, { borderColor: theme.border }]}
           onPress={pickFromContacts}
+          accessibilityRole="button"
+          accessibilityLabel="Pick from contacts"
         >
           <Text style={[styles.pickButtonText, { color: theme.primary }]}>
             Pick from contacts
@@ -131,44 +150,83 @@ export function SetupContactScreen({ navigation }: Props) {
           returnKeyType="done"
           onSubmitEditing={Keyboard.dismiss}
         />
+        <InlineError message={validationError} />
 
-        {!showSecondary ? (
-          <TouchableOpacity
-            style={[styles.addSecondary, { borderColor: theme.border }]}
-            onPress={() => setShowSecondary(true)}
-          >
-            <Text style={[styles.addSecondaryText, { color: theme.primary }]}>
-              + Add second contact (optional)
+        {additional.map((row, index) => (
+          <View key={`add-${index}`}>
+            <Text style={[styles.label, { color: theme.textMuted }]}>
+              Trusted contact {index + 1} (optional, priority {index + 2})
             </Text>
-          </TouchableOpacity>
-        ) : (
-          <>
-            <Text style={[styles.label, { color: theme.textMuted }]}>Second contact (optional)</Text>
             <TextInput
               style={[styles.input, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
               placeholder="Name"
               placeholderTextColor={theme.textMuted}
-              value={secondary?.name ?? ''}
+              value={row.name}
               onChangeText={(t) =>
-                setSecondary((s) => ({ ...(s ?? { name: '', phone: '' }), name: t }))
+                setAdditional((prev) =>
+                  prev.map((c, i) => (i === index ? { ...c, name: t } : c))
+                )
               }
             />
             <TextInput
               style={[styles.input, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
               placeholder="Phone"
               placeholderTextColor={theme.textMuted}
-              value={secondary?.phone ?? ''}
+              value={row.phone}
               onChangeText={(t) =>
-                setSecondary((s) => ({ ...(s ?? { name: '', phone: '' }), phone: t }))
+                setAdditional((prev) =>
+                  prev.map((c, i) => (i === index ? { ...c, phone: t } : c))
+                )
               }
               keyboardType="phone-pad"
             />
-            <TouchableOpacity onPress={() => setShowSecondary(false)}>
-              <Text style={[styles.removeSecondary, { color: theme.textMuted }]}>
-                Remove second contact
-              </Text>
-            </TouchableOpacity>
-          </>
+            <View style={styles.additionalActions}>
+              {index > 0 && (
+                <TouchableOpacity
+                  onPress={() =>
+                    setAdditional((prev) => {
+                      const next = [...prev];
+                      [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                      return next;
+                    })
+                  }
+                >
+                  <Text style={[styles.reorderText, { color: theme.primary }]}>Move up</Text>
+                </TouchableOpacity>
+              )}
+              {index < additional.length - 1 && (
+                <TouchableOpacity
+                  onPress={() =>
+                    setAdditional((prev) => {
+                      const next = [...prev];
+                      [next[index], next[index + 1]] = [next[index + 1], next[index]];
+                      return next;
+                    })
+                  }
+                >
+                  <Text style={[styles.reorderText, { color: theme.primary }]}>Move down</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => setAdditional((prev) => prev.filter((_, i) => i !== index))}
+              >
+                <Text style={[styles.removeSecondary, { color: theme.textMuted }]}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+
+        {additional.length < MAX_ADDITIONAL_CONTACTS && (
+          <TouchableOpacity
+            style={[styles.addSecondary, { borderColor: theme.border }]}
+            onPress={() =>
+              setAdditional((prev) => [...prev, { name: '', phone: '' }].slice(0, MAX_ADDITIONAL_CONTACTS))
+            }
+          >
+            <Text style={[styles.addSecondaryText, { color: theme.primary }]}>
+              + Add trusted contact (up to {MAX_ADDITIONAL_CONTACTS})
+            </Text>
+          </TouchableOpacity>
         )}
 
         <Text style={[styles.label, { color: theme.textMuted }]}>Medical notes (optional)</Text>
@@ -188,15 +246,17 @@ export function SetupContactScreen({ navigation }: Props) {
           onSubmitEditing={Keyboard.dismiss}
         />
 
-        <TouchableOpacity
-          style={[styles.saveButton, { backgroundColor: theme.primary }]}
+        <Button
+          title="Save"
           onPress={() => {
             Keyboard.dismiss();
             save();
           }}
-        >
-          <Text style={styles.saveButtonText}>Save</Text>
-        </TouchableOpacity>
+          loading={saving}
+          disabled={saving}
+          style={styles.saveButton}
+          textStyle={styles.saveButtonText}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -233,7 +293,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   addSecondaryText: { fontSize: 15 },
-  removeSecondary: { fontSize: 14, marginBottom: 24 },
+  removeSecondary: { fontSize: 14, marginBottom: 8 },
+  additionalActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  reorderText: { fontSize: 14, fontWeight: '600' },
   saveButton: {
     borderRadius: 12,
     paddingVertical: 18,

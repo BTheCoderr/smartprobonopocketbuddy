@@ -15,6 +15,10 @@ export interface RecordingMeta {
   shareStatus?: RecordingShareStatus;
   scenario?: string;
   locationLink?: string;
+  /** History event id when this file was saved as part of a session row. */
+  eventId?: string;
+  /** Live session engine id when saved during a visit. */
+  liveSessionId?: string;
 }
 
 export function setCurrentSessionRecording(uri: string | null): void {
@@ -32,7 +36,14 @@ export function clearCurrentSessionRecording(): void {
 export async function saveRecording(
   uri: string,
   durationSeconds: number,
-  options?: { scenario?: string; locationLink?: string; shareStatus?: RecordingShareStatus; extension?: string }
+  options?: {
+    scenario?: string;
+    locationLink?: string;
+    shareStatus?: RecordingShareStatus;
+    extension?: string;
+    eventId?: string;
+    liveSessionId?: string;
+  }
 ): Promise<string> {
   const ext = options?.extension ?? (uri.toLowerCase().endsWith('.mp4') ? '.mp4' : '.m4a');
   const filename = `recording_${Date.now()}${ext}`;
@@ -46,12 +57,21 @@ export async function saveRecording(
     shareStatus: options?.shareStatus ?? 'saved',
     scenario: options?.scenario,
     locationLink: options?.locationLink,
+    ...(options?.eventId ? { eventId: options.eventId } : {}),
+    ...(options?.liveSessionId ? { liveSessionId: options.liveSessionId } : {}),
   };
   const list = await getRecordings();
   const updated = [meta, ...list].slice(0, MAX_RECORDINGS);
   await AsyncStorage.setItem(RECORDINGS_KEY, JSON.stringify(updated));
   setCurrentSessionRecording(destUri);
   return destUri;
+}
+
+/** Attach a history event id to an existing saved recording row (same uri as in events). */
+export async function updateRecordingEventLink(uri: string, eventId: string): Promise<void> {
+  const list = await getRecordings();
+  const updated = list.map((r) => (r.uri === uri ? { ...r, eventId } : r));
+  await AsyncStorage.setItem(RECORDINGS_KEY, JSON.stringify(updated));
 }
 
 export async function getRecordings(): Promise<RecordingMeta[]> {

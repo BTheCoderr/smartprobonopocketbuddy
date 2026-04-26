@@ -17,3 +17,14 @@ export async function getCurrentLocation(): Promise<LocationCoords | null> {
 export function formatLocationForMaps(lat: number, lng: number): string {
   return `https://maps.google.com/?q=${lat},${lng}`;
 }
+
+export type StartSafetySessionResult = {
+  locationLink: string | undefined;
+};
+
+/** Resolve GPS + map link for Safety Mode confirm flow (before SMS + navigation). */
+export async function startSafetySession(): Promise<StartSafetySessionResult> {
+  const loc = await getCurrentLocation();
+  const locationLink = loc ? formatLocationForMaps(loc.latitude, loc.longitude) : undefined;
+  return { locationLink };
+}

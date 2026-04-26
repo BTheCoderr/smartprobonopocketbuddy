@@ -3,6 +3,8 @@ import { View, ActivityIndicator, StyleSheet, useColorScheme, Image, Text } from
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { hasCompletedOnboarding } from '../storage/settingsStorage';
+import { discardStalePersistedSession } from '../services/liveSessionRuntime';
+import { retryAsync } from '../utils/retry';
 import { colors } from '../theme/colors';
 
 type Props = {
@@ -10,7 +12,6 @@ type Props = {
 };
 
 export function GateScreen({ navigation }: Props) {
-  const [checking, setChecking] = useState(true);
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? colors.dark : colors.light;
 
@@ -18,9 +19,13 @@ export function GateScreen({ navigation }: Props) {
     let mounted = true;
     const run = async () => {
       try {
-        const done = await hasCompletedOnboarding();
+        await discardStalePersistedSession();
+      } catch {
+        // Stale session cleanup failed; safe to continue
+      }
+      try {
+        const done = await retryAsync(() => hasCompletedOnboarding());
         if (!mounted) return;
-        setChecking(false);
         if (done) {
           navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
         } else {
@@ -28,7 +33,6 @@ export function GateScreen({ navigation }: Props) {
         }
       } catch {
         if (mounted) {
-          setChecking(false);
           navigation.replace('Onboarding');
         }
       }
@@ -38,8 +42,6 @@ export function GateScreen({ navigation }: Props) {
       mounted = false;
     };
   }, [navigation]);
-
-  if (!checking) return null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>

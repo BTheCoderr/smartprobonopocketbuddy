@@ -7,8 +7,10 @@ import { TabNavigator } from './TabNavigator';
 import { GateScreen } from '../screens/GateScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { SetupContactScreen } from '../screens/SetupContactScreen';
+import { KidScheduleScreen } from '../screens/KidScheduleScreen';
+import { FamilyHubScreen } from '../screens/FamilyHubScreen';
 import { ActiveScreen } from '../screens/ActiveScreen';
-import { RecordingScreen } from '../screens/RecordingScreen';
+import { HealthCheckScreen } from '../screens/HealthCheckScreen';
 import { colors } from '../theme/colors';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -60,9 +62,19 @@ export function RootNavigator() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="FamilyHub"
+          component={FamilyHubScreen}
+          options={{ title: 'Family' }}
+        />
+        <Stack.Screen
           name="SetupContact"
           component={SetupContactScreen}
           options={{ title: 'Emergency Contact' }}
+        />
+        <Stack.Screen
+          name="KidSchedule"
+          component={KidScheduleScreen}
+          options={{ title: 'Kid schedule' }}
         />
         <Stack.Screen
           name="Active"
@@ -70,9 +82,9 @@ export function RootNavigator() {
           options={{ title: 'Safety Mode', headerBackVisible: false }}
         />
         <Stack.Screen
-          name="Recording"
-          component={RecordingScreen}
-          options={{ title: 'Recording' }}
+          name="HealthCheck"
+          component={HealthCheckScreen}
+          options={{ title: 'Health Check' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

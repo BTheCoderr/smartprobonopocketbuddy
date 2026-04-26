@@ -26,6 +26,7 @@ import {
   setRecordingDisclosureSeen,
   setOnboardingComplete,
 } from '../storage/settingsStorage';
+import { trackEvent, trackError } from '../lib/analytics';
 import { colors } from '../theme/colors';
 
 const DISCLOSURE_TEXT =
@@ -92,20 +93,37 @@ export function OnboardingScreen({ navigation }: Props) {
     } else if (step === 1) {
       if (!canProceedFromContact) return;
       Keyboard.dismiss();
-      await saveEmergencyContact({ name: contactName.trim(), phone: contactPhone.trim() });
-      setStep(2);
+      try {
+        await saveEmergencyContact({ name: contactName.trim(), phone: contactPhone.trim() });
+        trackEvent('onboarding.contact_saved');
+        setStep(2);
+      } catch (e) {
+        trackError('onboarding.contact_save_failed', e);
+        Alert.alert('Could not save', 'Please check your connection and try again.');
+      }
     } else if (step === 2) {
-      await setRecordingEnabled(recordingOn);
-      await setRecordingDisclosureSeen();
-      setStep(3);
+      try {
+        await setRecordingEnabled(recordingOn);
+        await setRecordingDisclosureSeen();
+        setStep(3);
+      } catch {
+        Alert.alert('Could not save', 'Please try again.');
+      }
     } else if (step === 3) {
       await requestLocation();
       setStep(4);
     } else {
       setLoading(true);
-      await setOnboardingComplete();
-      setLoading(false);
-      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+      try {
+        await setOnboardingComplete();
+        trackEvent('onboarding.completed');
+        navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+      } catch (e) {
+        trackError('onboarding.complete_failed', e);
+        Alert.alert('Setup error', 'Could not finish setup. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 

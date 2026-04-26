@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,9 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
+import { useToast } from '../components/Toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CompositeNavigationProp } from '@react-navigation/native';
+import { CompositeNavigationProp, useFocusEffect } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { TabParamList, RootStackParamList } from '../navigation/types';
@@ -24,6 +25,8 @@ import {
   setPresetMode,
   getPipModeEnabled,
   setPipModeEnabled,
+  getCalmGuidanceEnabled,
+  setCalmGuidanceEnabled,
   type PresetMode,
 } from '../storage/settingsStorage';
 import { deleteAllRecordings, resetAppForScreenshots } from '../utils/recordingUtils';
@@ -38,11 +41,13 @@ type Props = {
 
 export function SettingsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const toast = useToast();
   const [recordingOn, setRecordingOn] = useState(true);
   const [autoShareOn, setAutoShareOn] = useState(false);
   const [pipOn, setPipOn] = useState(false);
   const [hasContact, setHasContact] = useState(false);
   const [preset, setPreset] = useState<PresetMode>('audio');
+  const [calmGuidanceOn, setCalmGuidanceOn] = useState(true);
 
   useEffect(() => {
     getEmergencyContact().then((c) => setHasContact(!!c));
@@ -50,12 +55,20 @@ export function SettingsScreen({ navigation }: Props) {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? colors.dark : colors.light;
 
-  useEffect(() => {
-    getRecordingEnabled().then(setRecordingOn);
-    getAutoShare().then(setAutoShareOn);
-    getPipModeEnabled().then(setPipOn);
-    getPresetMode().then(setPreset);
+  const refreshSettings = useCallback(() => {
+    void getEmergencyContact().then((c) => setHasContact(!!c));
+    void getRecordingEnabled().then(setRecordingOn);
+    void getAutoShare().then(setAutoShareOn);
+    void getPipModeEnabled().then(setPipOn);
+    void getPresetMode().then(setPreset);
+    void getCalmGuidanceEnabled().then(setCalmGuidanceOn);
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshSettings();
+    }, [refreshSettings])
+  );
 
   const handleRecordingToggle = (v: boolean) => {
     setRecordingOn(v);
@@ -65,6 +78,11 @@ export function SettingsScreen({ navigation }: Props) {
   const handleAutoShareToggle = (v: boolean) => {
     setAutoShareOn(v);
     setAutoShare(v);
+  };
+
+  const handleCalmGuidanceToggle = (v: boolean) => {
+    setCalmGuidanceOn(v);
+    setCalmGuidanceEnabled(v);
   };
 
   const handlePipToggle = (v: boolean) => {
@@ -94,10 +112,10 @@ export function SettingsScreen({ navigation }: Props) {
           style: 'destructive',
           onPress: () => {
             deleteAllRecordings()
-              .then(() => Alert.alert('Done', 'All recordings have been deleted.'))
+              .then(() => toast.show({ type: 'success', message: 'All recordings have been deleted.' }))
               .catch((err) => {
                 console.error('deleteAllRecordings failed:', err);
-                Alert.alert('Error', 'Could not delete. Please try again.');
+                toast.show({ type: 'error', message: 'Could not delete. Please try again.' });
               });
           },
         },
@@ -114,10 +132,21 @@ export function SettingsScreen({ navigation }: Props) {
       <TouchableOpacity
         style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
         onPress={() => navigation.navigate('SetupContact')}
+        accessibilityRole="button"
+        accessibilityLabel="Edit emergency contact"
       >
         <Text style={[styles.rowLabel, { color: theme.text }]}>
           {hasContact ? 'Emergency contact configured' : 'Set emergency contact'}
         </Text>
+        <Text style={[styles.editLink, { color: theme.primary }]}>Edit</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        onPress={() => navigation.navigate('KidSchedule')}
+        accessibilityRole="button"
+        accessibilityLabel="Edit kid schedule"
+      >
+        <Text style={[styles.rowLabel, { color: theme.text }]}>Kid schedule</Text>
         <Text style={[styles.editLink, { color: theme.primary }]}>Edit</Text>
       </TouchableOpacity>
 
@@ -156,6 +185,7 @@ export function SettingsScreen({ navigation }: Props) {
         <Switch
           value={pipOn}
           onValueChange={handlePipToggle}
+          accessibilityLabel="Floating window PiP"
         />
       </View>
       <Text style={[styles.rowHint, { color: theme.textMuted }]}>
@@ -163,14 +193,21 @@ export function SettingsScreen({ navigation }: Props) {
       </Text>
       <View style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.rowLabel, { color: theme.text }]}>Recording enabled</Text>
-        <Switch value={recordingOn} onValueChange={handleRecordingToggle} />
+        <Switch value={recordingOn} onValueChange={handleRecordingToggle} accessibilityLabel="Recording enabled" />
       </View>
       <View style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.rowLabel, { color: theme.text }]}>Auto-share to emergency contact after stop</Text>
-        <Switch value={autoShareOn} onValueChange={handleAutoShareToggle} />
+        <Switch value={autoShareOn} onValueChange={handleAutoShareToggle} accessibilityLabel="Auto-share after stop" />
       </View>
       <Text style={[styles.rowHint, { color: theme.textMuted }]}>
         When on, the share dialog will open automatically after you stop recording. Default: OFF.
+      </Text>
+      <View style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Text style={[styles.rowLabel, { color: theme.text }]}>Calm guidance on Active</Text>
+        <Switch value={calmGuidanceOn} onValueChange={handleCalmGuidanceToggle} accessibilityLabel="Calm guidance on Active" />
+      </View>
+      <Text style={[styles.rowHint, { color: theme.textMuted }]}>
+        Checklists and scripts during Safety, Travel, and Kid Track. Default: ON.
       </Text>
 
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Data & Privacy</Text>
@@ -183,6 +220,8 @@ export function SettingsScreen({ navigation }: Props) {
       <TouchableOpacity
         style={[styles.deleteButton, { borderColor: theme.border }]}
         onPress={handleDeleteRecordings}
+        accessibilityRole="button"
+        accessibilityLabel="Delete all recordings"
       >
         <Text style={[styles.deleteButtonText, { color: theme.textMuted }]}>
           Delete all recordings
@@ -195,6 +234,8 @@ export function SettingsScreen({ navigation }: Props) {
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Screenshots</Text>
       <TouchableOpacity
         style={[styles.deleteButton, { borderColor: theme.border }]}
+        accessibilityRole="button"
+        accessibilityLabel="Reset app for screenshots"
         onPress={() => {
           Alert.alert(
             'Reset app for screenshots',
@@ -207,11 +248,13 @@ export function SettingsScreen({ navigation }: Props) {
                 onPress: () => {
                   resetAppForScreenshots()
                     .then(() => {
-                      navigation.reset({ index: 0, routes: [{ name: 'Gate' }] });
+                      navigation
+                        .getParent<NativeStackNavigationProp<RootStackParamList>>()
+                        ?.reset({ index: 0, routes: [{ name: 'Gate' }] });
                     })
                     .catch((err) => {
                       console.error('resetAppForScreenshots failed:', err);
-                      Alert.alert('Error', 'Could not reset. Please try again.');
+                      toast.show({ type: 'error', message: 'Could not reset. Please try again.' });
                     });
                 },
               },
@@ -233,6 +276,17 @@ export function SettingsScreen({ navigation }: Props) {
           "Hey Siri, start SmartProBono recording" — Coming in a future update. Siri Shortcuts require a full app build (not Expo Go).
         </Text>
       </View>
+
+      <TouchableOpacity
+        style={styles.healthCheckLink}
+        onPress={() => navigation.navigate('HealthCheck')}
+        accessibilityRole="button"
+        accessibilityLabel="Open health check"
+      >
+        <Text style={[styles.healthCheckText, { color: theme.textMuted }]}>
+          Health Check
+        </Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -279,4 +333,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   deleteButtonText: { fontSize: 16 },
+  healthCheckLink: { alignItems: 'center', marginTop: 32, marginBottom: 8 },
+  healthCheckText: { fontSize: 13 },
 });

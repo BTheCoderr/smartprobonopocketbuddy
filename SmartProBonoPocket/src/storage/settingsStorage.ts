@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { trackError } from '../lib/analytics';
 
 const PREFIX = '@smartpocketbuddy_';
 const KEY_RECORDING_ENABLED = `${PREFIX}recording_enabled`;
@@ -7,6 +8,7 @@ const KEY_FIRST_RUN_DISCLOSURE = `${PREFIX}has_seen_recording_disclosure`;
 const KEY_PRESET_MODE = `${PREFIX}preset_mode`;
 const KEY_ONBOARDING_COMPLETE = `${PREFIX}onboarding_complete`;
 const KEY_PIP_MODE = `${PREFIX}pip_mode`;
+const KEY_CALM_GUIDANCE = `${PREFIX}calm_guidance_enabled`;
 
 export type PresetMode = 'audio' | 'video' | 'both' | 'auto';
 
@@ -19,12 +21,12 @@ async function safeGet(key: string): Promise<string | null> {
   }
 }
 
-/** Safe set - no-op if native module fails */
+/** Safe set - no-op if native module fails, but logs the failure for observability */
 async function safeSet(key: string, value: string): Promise<void> {
   try {
     await AsyncStorage.setItem(key, value);
-  } catch {
-    // Ignore
+  } catch (e) {
+    trackError('settings.safe_set_failed', e, { key });
   }
 }
 
@@ -80,4 +82,14 @@ export async function getPipModeEnabled(): Promise<boolean> {
 
 export async function setPipModeEnabled(enabled: boolean): Promise<void> {
   await safeSet(KEY_PIP_MODE, enabled.toString());
+}
+
+/** Checklists / scripts on Active; default on. */
+export async function getCalmGuidanceEnabled(): Promise<boolean> {
+  const v = await safeGet(KEY_CALM_GUIDANCE);
+  return v === null ? true : v === 'true';
+}
+
+export async function setCalmGuidanceEnabled(enabled: boolean): Promise<void> {
+  await safeSet(KEY_CALM_GUIDANCE, enabled.toString());
 }

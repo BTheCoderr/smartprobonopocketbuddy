@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,9 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
+import { useToast } from '../components/Toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Sharing from 'expo-sharing';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
@@ -20,36 +22,71 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { TabParamList } from '../navigation/types';
-import { getSafetyEvents, SafetyEvent, deleteEvent, updateEventLabel } from '../storage/eventStorage';
+import {
+  getSafetyEvents,
+  SafetyEvent,
+  deleteEvent,
+  updateEventLabel,
+  summarizeRouteForHistory,
+} from '../storage/eventStorage';
 import { deleteSingleRecording } from '../utils/recordingUtils';
+import { getMimeForUri, isVideoUri } from '../utils/media';
 import { SCENARIO_LABELS } from '../constants/guidance';
 import { ScenarioType } from '../types';
 import { colors } from '../theme/colors';
 
 type Props = BottomTabScreenProps<TabParamList, 'History'>;
 
+function sessionTypeLabel(scenario: ScenarioType): string {
+  switch (scenario) {
+    case 'other':
+      return 'Safety';
+    case 'travel':
+      return 'Travel';
+    case 'kid_track':
+      return 'Kid Track';
+    default:
+      return SCENARIO_LABELS[scenario];
+  }
+}
+
+function recordingKindLabel(uri?: string): string | null {
+  if (!uri) return null;
+  return isVideoUri(uri) ? 'Video' : 'Audio';
+}
+
 export function HistoryScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const toast = useToast();
   const [events, setEvents] = useState<SafetyEvent[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [playingUri, setPlayingUri] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingEvent, setEditingEvent] = useState<SafetyEvent | null>(null);
   const [editLabel, setEditLabel] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const player = useAudioPlayer(playingUri ?? null);
   const status = useAudioPlayerStatus(player);
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? colors.dark : colors.light;
 
-  useEffect(() => {
-    getSafetyEvents().then(setEvents);
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
-      getSafetyEvents().then(setEvents);
-    }, [])
+      getSafetyEvents().then((e) => {
+        setEvents(e);
+        setLoaded(true);
+      });
+      return () => {
+        try {
+          player.pause();
+        } catch {
+          // Player may be disposed
+        }
+      };
+    }, [player])
   );
 
   const formatDate = (ts: string) => {
@@ -65,17 +102,20 @@ export function HistoryScreen({ navigation }: Props) {
     if (!uri) return;
     try {
       const available = await Sharing.isAvailableAsync();
-      const mime = uri.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'audio/m4a';
+      const mime = getMimeForUri(uri);
       if (available) await Sharing.shareAsync(uri, { mimeType: mime });
     } catch {
       // User cancelled
     }
   };
 
-  const isVideo = (uri?: string) => uri?.toLowerCase().endsWith('.mp4');
+  const isVideo = (uri?: string) => uri ? isVideoUri(uri) : false;
 
   const refreshEvents = useCallback(() => {
-    getSafetyEvents().then(setEvents);
+    setRefreshing(true);
+    getSafetyEvents()
+      .then(setEvents)
+      .finally(() => setRefreshing(false));
   }, []);
 
   const toggleSelect = (id: string) => {
@@ -117,7 +157,7 @@ export function HistoryScreen({ navigation }: Props) {
               clearSelection();
               await refreshEvents();
             } catch {
-              Alert.alert('Error', 'Could not delete some items.');
+              toast.show({ type: 'error', message: 'Could not delete some items.' });
             } finally {
               setDeletingId(null);
             }
@@ -141,7 +181,7 @@ export function HistoryScreen({ navigation }: Props) {
             setDeletingId(evt.id);
             deleteSingleRecording(evt.recordingUri!, evt.id)
               .then(refreshEvents)
-              .catch(() => Alert.alert('Error', 'Could not delete recording.'))
+              .catch(() => toast.show({ type: 'error', message: 'Could not delete recording.' }))
               .finally(() => setDeletingId(null));
           },
         },
@@ -166,7 +206,7 @@ export function HistoryScreen({ navigation }: Props) {
             deleteRecording
               .then(() => deleteEvent(evt.id))
               .then(refreshEvents)
-              .catch(() => Alert.alert('Error', 'Could not remove.'))
+              .catch(() => toast.show({ type: 'error', message: 'Could not remove.' }))
               .finally(() => setDeletingId(null));
           },
         },
@@ -176,18 +216,25 @@ export function HistoryScreen({ navigation }: Props) {
 
   const openEditName = (evt: SafetyEvent) => {
     setEditingEvent(evt);
-    setEditLabel(evt.label ?? SCENARIO_LABELS[evt.scenario as ScenarioType]);
+    setEditLabel(evt.label ?? sessionTypeLabel(evt.scenario));
   };
 
   const saveEditName = async () => {
-    if (!editingEvent) return;
-    await updateEventLabel(editingEvent.id, editLabel);
-    setEditingEvent(null);
-    refreshEvents();
+    if (!editingEvent || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      await updateEventLabel(editingEvent.id, editLabel);
+      setEditingEvent(null);
+      refreshEvents();
+    } catch {
+      toast.show({ type: 'error', message: 'Could not update name.' });
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const getEventDisplayName = (evt: SafetyEvent) =>
-    evt.label?.trim() || SCENARIO_LABELS[evt.scenario as ScenarioType];
+    evt.label?.trim() || sessionTypeLabel(evt.scenario);
 
   const playRecording = (uri?: string) => {
     if (!uri) return;
@@ -214,9 +261,14 @@ export function HistoryScreen({ navigation }: Props) {
     >
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <Text style={[styles.title, { color: theme.text }]}>Safety history</Text>
+          <View style={styles.titleRow}>
+            <Text style={[styles.title, { color: theme.text }]}>Session history</Text>
+            {refreshing && (
+              <ActivityIndicator size="small" color={theme.primaryAccent} style={styles.refreshSpinner} />
+            )}
+          </View>
           <Text style={[styles.subtitle, { color: theme.textMuted }]}>
-            Last 10 events. Tap location to open maps.
+            Last 10 sessions — Safety, Travel, Kid Track. Time, type, recording, and route when saved.
           </Text>
         </View>
         {events.length > 0 && (
@@ -264,14 +316,18 @@ export function HistoryScreen({ navigation }: Props) {
         </View>
       )}
 
-      {events.length === 0 ? (
+      {!loaded ? (
+        <ActivityIndicator size="large" color={theme.primaryAccent} style={{ marginTop: 48 }} />
+      ) : events.length === 0 ? (
         <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.emptyText, { color: theme.textMuted }]}>
-            No events yet. Your safety sessions will appear here.
+            No sessions yet. Completed Safety, Travel, and Kid Track visits appear here.
           </Text>
         </View>
       ) : (
-        events.map((evt) => (
+        events.map((evt) => {
+          const routeSummary = summarizeRouteForHistory(evt.route);
+          return (
           <TouchableOpacity
             key={evt.id}
             style={[
@@ -313,6 +369,19 @@ export function HistoryScreen({ navigation }: Props) {
             <Text style={[styles.cardTime, { color: theme.textMuted }]}>
               {formatDate(evt.timestamp)}
             </Text>
+            <Text style={[styles.cardMeta, { color: theme.textMuted }]}>
+              Type · {sessionTypeLabel(evt.scenario)}
+            </Text>
+            {recordingKindLabel(evt.recordingUri) && (
+              <Text style={[styles.cardMeta, { color: theme.textMuted }]}>
+                Recording · {recordingKindLabel(evt.recordingUri)}
+              </Text>
+            )}
+            {routeSummary && (
+              <Text style={[styles.cardRoute, { color: theme.textMuted }]} numberOfLines={3}>
+                Route · {routeSummary}
+              </Text>
+            )}
             <View style={styles.actionsRow}>
               {evt.locationLink && (
                 <TouchableOpacity
@@ -400,7 +469,8 @@ export function HistoryScreen({ navigation }: Props) {
               </Text>
             </TouchableOpacity>
           </TouchableOpacity>
-        ))
+          );
+        })
       )}
 
       <Modal visible={!!editingEvent} transparent animationType="fade">
@@ -423,14 +493,24 @@ export function HistoryScreen({ navigation }: Props) {
                 <TouchableOpacity
                   style={[styles.editModalBtn, { borderColor: theme.border }]}
                   onPress={() => setEditingEvent(null)}
+                  disabled={savingEdit}
                 >
                   <Text style={[styles.editModalBtnText, { color: theme.text }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.editModalBtn, { backgroundColor: theme.primaryAccent }]}
+                  style={[
+                    styles.editModalBtn,
+                    { backgroundColor: theme.primaryAccent },
+                    savingEdit && { opacity: 0.6 },
+                  ]}
                   onPress={saveEditName}
+                  disabled={savingEdit}
                 >
-                  <Text style={styles.editModalBtnTextPrimary}>Save</Text>
+                  {savingEdit ? (
+                    <ActivityIndicator color="#FFF" size="small" />
+                  ) : (
+                    <Text style={styles.editModalBtnTextPrimary}>Save</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -446,6 +526,8 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 24, paddingBottom: 100 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
   headerLeft: { flex: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  refreshSpinner: { marginLeft: 4 },
   title: { fontSize: 22, fontWeight: '600' },
   subtitle: { fontSize: 15, marginTop: 6, marginBottom: 24 },
   selectBtn: {
@@ -496,6 +578,8 @@ const styles = StyleSheet.create({
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   cardTitle: { fontSize: 17, fontWeight: '600', flex: 1 },
   cardTime: { fontSize: 14, marginTop: 4 },
+  cardMeta: { fontSize: 14, marginTop: 6 },
+  cardRoute: { fontSize: 13, marginTop: 4, lineHeight: 18 },
   actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
   actionBtn: {
     flexDirection: 'row',

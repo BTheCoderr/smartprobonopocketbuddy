@@ -10,6 +10,7 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
+import { useToast } from '../components/Toast';
 import {
   useAudioRecorder,
   useAudioRecorderState,
@@ -27,33 +28,55 @@ import { RouteProp } from '@react-navigation/native';
 import { TabParamList, RootStackParamList } from '../navigation/types';
 import { ScenarioType } from '../types';
 import { saveRecording } from '../storage/recordingStorage';
-import { addSafetyEvent } from '../storage/eventStorage';
-import { waitForRecordingFinalized } from '../utils/recordingUtils';
+import {
+  addSafetyEvent,
+  saveKidTrackSessionEvent,
+  saveSafetySessionEvent,
+  saveTravelSessionEvent,
+  type SafetyEvent,
+} from '../storage/eventStorage';
+import { linkRecordingToSessionEvent, waitForRecordingFinalized } from '../utils/recordingUtils';
 import { getEmergencyContact } from '../storage/contactStorage';
 import { getAutoShare, getPresetMode, type PresetMode } from '../storage/settingsStorage';
+import { getRecordingScenarioForCurrentSession, getSessionSnapshot } from '../services/sessionService';
+import { getMimeForUri, isVideoUri } from '../utils/media';
 import { colors } from '../theme/colors';
+import { AsyncButton } from '../components/AsyncButton';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const RECORDING_DISCLAIMER =
   'Recording laws vary by state. You are responsible for complying with local laws.';
 
+/** Uses save*SessionEvent for Safety / Travel / Kid Track; other scenario types use addSafetyEvent. */
+async function persistRecordingCompletedEvent(
+  payload: Omit<SafetyEvent, 'id' | 'scenario'>,
+  scenario: ScenarioType
+): Promise<string> {
+  if (scenario === 'travel') return saveTravelSessionEvent(payload);
+  if (scenario === 'kid_track') return saveKidTrackSessionEvent(payload);
+  if (scenario === 'other') return saveSafetySessionEvent(payload);
+  return addSafetyEvent({ ...payload, scenario });
+}
+
 type RecordingNav = CompositeNavigationProp<
   BottomTabNavigationProp<TabParamList, 'Record'>,
   NativeStackNavigationProp<RootStackParamList>
 >;
-type RecordingRoute = RouteProp<TabParamList, 'Record'> | RouteProp<RootStackParamList, 'Recording'>;
+type RecordingRoute = RouteProp<TabParamList, 'Record'>;
 type Props = { navigation: RecordingNav; route: RecordingRoute };
 
 export function RecordingScreen({ navigation, route }: Props) {
-  const scenario = route.params?.scenario;
+  const scenario = route.params?.scenario ?? getRecordingScenarioForCurrentSession();
+  const toast = useToast();
   const [preset, setPreset] = useState<PresetMode>('audio');
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
-  const videoRecordPromiseRef = useRef<Promise<{ uri: string }> | null>(null);
+  const videoRecordPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
   const [showActions, setShowActions] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [tempUri, setTempUri] = useState<string | null>(null);
   const [savedDuration, setSavedDuration] = useState(0);
   const [safeIsRecording, setSafeIsRecording] = useState(false);
@@ -78,10 +101,6 @@ export function RecordingScreen({ navigation, route }: Props) {
   const autoUsesVideo = preset === 'auto' && permission?.granted === true;
   const isVideoMode = preset === 'video' || preset === 'both' || autoUsesVideo;
   const modeLabel = preset === 'both' ? 'Audio + Video' : preset === 'video' ? 'Video' : preset === 'auto' ? (autoUsesVideo ? 'Video (auto)' : 'Audio (auto)') : 'Audio';
-
-  useEffect(() => {
-    getPresetMode().then(setPreset);
-  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -132,9 +151,8 @@ export function RecordingScreen({ navigation, route }: Props) {
         return;
       }
     }
-    // Wait for camera to be ready (iOS fix: recordAsync can fail if started too soon)
     if (!cameraReady) {
-      Alert.alert('Camera', 'Please wait for the camera to finish loading.');
+      toast.show({ type: 'info', message: 'Please wait for the camera to finish loading.' });
       return;
     }
     try {
@@ -264,7 +282,7 @@ export function RecordingScreen({ navigation, route }: Props) {
       }
       let uri: string | undefined;
       try {
-        uri = rec.uri;
+        uri = rec.uri ?? undefined;
       } catch {
         uri = undefined;
       }
@@ -279,7 +297,7 @@ export function RecordingScreen({ navigation, route }: Props) {
             const canShare = await Sharing.isAvailableAsync();
             if (canShare) {
               await Sharing.shareAsync(uri, {
-                mimeType: uri.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'audio/m4a',
+                mimeType: getMimeForUri(uri),
                 dialogTitle: `Share to ${contactName}`,
               });
             }
@@ -301,45 +319,55 @@ export function RecordingScreen({ navigation, route }: Props) {
     }
   };
 
-  const getMimeType = () => (tempUri?.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'audio/m4a');
+  const getMimeType = () => (tempUri ? getMimeForUri(tempUri) : 'audio/m4a');
 
   const handleSave = async () => {
     if (!tempUri) return;
+    setSaving(true);
     try {
       const destUri = await saveRecording(tempUri, savedDuration || duration, {
         extension: tempUri.toLowerCase().endsWith('.mp4') ? '.mp4' : undefined,
         scenario: scenario ?? 'other',
+        liveSessionId: getSessionSnapshot().session?.liveSessionId,
       });
-      await addSafetyEvent({
-        scenario: (scenario ?? 'other') as ScenarioType,
-        timestamp: new Date().toISOString(),
-        recordingUri: destUri,
-        status: 'partial',
-      });
+      const eventId = await persistRecordingCompletedEvent(
+        {
+          timestamp: new Date().toISOString(),
+          recordingUri: destUri,
+          status: 'partial',
+        },
+        (scenario ?? 'other') as ScenarioType
+      );
+      await linkRecordingToSessionEvent(destUri, eventId);
       setShowActions(false);
       setTempUri(null);
-      Alert.alert('Saved', 'Recording saved and added to Safety history.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      toast.show({ type: 'success', message: 'Recording saved and added to history.' });
+      navigation.goBack();
     } catch (e) {
-      Alert.alert('Error', 'Could not save recording.');
+      setSaving(false);
+      toast.show({ type: 'error', message: 'Could not save recording.' });
     }
   };
 
   const handleShareToContact = async () => {
     if (!tempUri) return;
+    setSaving(true);
     try {
       const destUri = await saveRecording(tempUri, savedDuration || duration, {
         extension: tempUri.toLowerCase().endsWith('.mp4') ? '.mp4' : undefined,
         scenario: scenario ?? 'other',
         shareStatus: 'shared',
+        liveSessionId: getSessionSnapshot().session?.liveSessionId,
       });
-      await addSafetyEvent({
-        scenario: (scenario ?? 'other') as ScenarioType,
-        timestamp: new Date().toISOString(),
-        recordingUri: destUri,
-        status: 'partial',
-      });
+      const eventId = await persistRecordingCompletedEvent(
+        {
+          timestamp: new Date().toISOString(),
+          recordingUri: destUri,
+          status: 'partial',
+        },
+        (scenario ?? 'other') as ScenarioType
+      );
+      await linkRecordingToSessionEvent(destUri, eventId);
       const contact = await getEmergencyContact();
       const contactName = contact?.name ?? 'emergency contact';
       const canShare = await Sharing.isAvailableAsync();
@@ -353,24 +381,30 @@ export function RecordingScreen({ navigation, route }: Props) {
       setTempUri(null);
       navigation.goBack();
     } catch (e) {
-      Alert.alert('Share', 'Could not share recording.');
+      setSaving(false);
+      toast.show({ type: 'error', message: 'Could not share recording.' });
     }
   };
 
   const handleShare = async () => {
     if (!tempUri) return;
+    setSaving(true);
     try {
       const destUri = await saveRecording(tempUri, savedDuration || duration, {
         extension: tempUri.toLowerCase().endsWith('.mp4') ? '.mp4' : undefined,
         scenario: scenario ?? 'other',
         shareStatus: 'shared',
+        liveSessionId: getSessionSnapshot().session?.liveSessionId,
       });
-      await addSafetyEvent({
-        scenario: (scenario ?? 'other') as ScenarioType,
-        timestamp: new Date().toISOString(),
-        recordingUri: destUri,
-        status: 'partial',
-      });
+      const eventId = await persistRecordingCompletedEvent(
+        {
+          timestamp: new Date().toISOString(),
+          recordingUri: destUri,
+          status: 'partial',
+        },
+        (scenario ?? 'other') as ScenarioType
+      );
+      await linkRecordingToSessionEvent(destUri, eventId);
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(destUri, { mimeType: getMimeType() });
@@ -379,11 +413,13 @@ export function RecordingScreen({ navigation, route }: Props) {
       setTempUri(null);
       navigation.goBack();
     } catch (e) {
-      Alert.alert('Share', 'Could not share recording.');
+      setSaving(false);
+      toast.show({ type: 'error', message: 'Could not share recording.' });
     }
   };
 
   const handleDelete = () => {
+    setSaving(true);
     setShowActions(false);
     setTempUri(null);
     navigation.goBack();
@@ -497,16 +533,31 @@ export function RecordingScreen({ navigation, route }: Props) {
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
               <Text style={[styles.modalTitle, { color: theme.text }]}>Recording complete</Text>
-              <TouchableOpacity style={[styles.modalButton, { backgroundColor: theme.primaryAccent }]} onPress={handleSave}>
-                <Text style={styles.modalButtonText}>Save (local)</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButtonSecondary, { borderColor: theme.border }]} onPress={handleShareToContact}>
-                <Text style={[styles.modalButtonTextAlt, { color: theme.text }]}>Share to emergency contact</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButtonSecondary, { borderColor: theme.border }]} onPress={handleShare}>
-                <Text style={[styles.modalButtonTextAlt, { color: theme.text }]}>Share</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButtonSecondary, { borderColor: theme.border }]} onPress={handleDelete}>
+              <AsyncButton
+                title="Save (local)"
+                onPress={handleSave}
+                disabled={saving}
+                variant="primary"
+                style={styles.modalButton}
+                textStyle={styles.modalButtonText}
+              />
+              <AsyncButton
+                title="Share"
+                onPress={handleShare}
+                disabled={saving}
+                variant="secondary"
+                style={styles.modalButtonSecondary}
+                textStyle={styles.modalButtonTextAlt}
+              />
+              <AsyncButton
+                title="Share to emergency contact"
+                onPress={handleShareToContact}
+                disabled={saving}
+                variant="secondary"
+                style={styles.modalButtonSecondary}
+                textStyle={styles.modalButtonTextAlt}
+              />
+              <TouchableOpacity style={[styles.modalButtonSecondary, { borderColor: theme.border }]} onPress={handleDelete} disabled={saving}>
                 <Text style={[styles.modalButtonTextAlt, { color: theme.textMuted }]}>Delete recording</Text>
               </TouchableOpacity>
             </View>
@@ -570,16 +621,31 @@ export function RecordingScreen({ navigation, route }: Props) {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Recording complete</Text>
-            <TouchableOpacity style={[styles.modalButton, { backgroundColor: theme.primaryAccent }]} onPress={handleSave}>
-              <Text style={styles.modalButtonText}>Save (local)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.modalButtonSecondary, { borderColor: theme.border }]} onPress={handleShareToContact}>
-              <Text style={[styles.modalButtonTextAlt, { color: theme.text }]}>Share to emergency contact</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.modalButtonSecondary, { borderColor: theme.border }]} onPress={handleShare}>
-              <Text style={[styles.modalButtonTextAlt, { color: theme.text }]}>Share</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.modalButtonSecondary, { borderColor: theme.border }]} onPress={handleDelete}>
+            <AsyncButton
+              title="Save (local)"
+              onPress={handleSave}
+              disabled={saving}
+              variant="primary"
+              style={styles.modalButton}
+              textStyle={styles.modalButtonText}
+            />
+            <AsyncButton
+              title="Share"
+              onPress={handleShare}
+              disabled={saving}
+              variant="secondary"
+              style={styles.modalButtonSecondary}
+              textStyle={styles.modalButtonTextAlt}
+            />
+            <AsyncButton
+              title="Share to emergency contact"
+              onPress={handleShareToContact}
+              disabled={saving}
+              variant="secondary"
+              style={styles.modalButtonSecondary}
+              textStyle={styles.modalButtonTextAlt}
+            />
+            <TouchableOpacity style={[styles.modalButtonSecondary, { borderColor: theme.border }]} onPress={handleDelete} disabled={saving}>
               <Text style={[styles.modalButtonTextAlt, { color: theme.textMuted }]}>Delete recording</Text>
             </TouchableOpacity>
           </View>

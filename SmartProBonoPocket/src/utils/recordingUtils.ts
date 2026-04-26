@@ -6,11 +6,14 @@ import {
   clearRecordingRefsFromEvents,
   deleteAllEvents,
 } from '../storage/eventStorage';
+import { updateRecordingEventLink } from '../storage/recordingStorage';
 
 const RECORDINGS_KEY = '@smartpocketbuddy_recordings';
 
 /** Min bytes per second for M4A AAC (~16KB/sec at 128kbps) */
 const MIN_BYTES_PER_SEC = 8000;
+/** Rough floor for H.264/AAC MP4 while recording (conservative). */
+const MIN_VIDEO_BYTES_PER_SEC = 40000;
 
 /**
  * Wait for the recording file to be fully written after stop().
@@ -28,7 +31,7 @@ export async function waitForRecordingFinalized(
   let stableCount = 0;
   while (Date.now() < deadline) {
     try {
-      const info = await FileSystem.getInfoAsync(uri, { size: true });
+      const info = await FileSystem.getInfoAsync(uri);
       const size = (info as { size?: number }).size ?? 0;
       if (size >= minSize) return;
       if (size === lastSize && size > 0) {
@@ -46,9 +49,46 @@ export async function waitForRecordingFinalized(
 }
 
 /**
+ * Wait for MP4 to finish writing after CameraView stop (iOS can finalize late).
+ */
+export async function waitForVideoRecordingFinalized(
+  uri: string | undefined,
+  expectedDurationSec: number
+): Promise<void> {
+  if (!uri) return;
+  await new Promise((r) => setTimeout(r, 800));
+  const minSize = Math.max(512 * 1024, expectedDurationSec * MIN_VIDEO_BYTES_PER_SEC);
+  const deadline = Date.now() + 5000;
+  let lastSize = 0;
+  let stableCount = 0;
+  while (Date.now() < deadline) {
+    try {
+      const info = await FileSystem.getInfoAsync(uri);
+      const size = (info as { size?: number }).size ?? 0;
+      if (size >= minSize) return;
+      if (size === lastSize && size > 0) {
+        stableCount++;
+        if (stableCount >= 2) return;
+      } else {
+        stableCount = 0;
+      }
+      lastSize = size;
+    } catch {
+      // File may not exist yet
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
+
+/**
  * Delete a single recording (file + metadata + event ref).
  * Call with eventId when deleting from History to clear the event's recording ref.
  */
+/** After `saveRecording` + `addSafetyEvent` / save*Session, attach the history row id to recording metadata. */
+export async function linkRecordingToSessionEvent(recordingUri: string, eventId: string): Promise<void> {
+  await updateRecordingEventLink(recordingUri, eventId);
+}
+
 export async function deleteSingleRecording(uri: string, eventId?: string): Promise<void> {
   try {
     const info = await FileSystem.getInfoAsync(uri);
@@ -101,7 +141,10 @@ export async function resetAppForScreenshots(): Promise<void> {
   await deleteAllEvents();
   const keys = await AsyncStorage.getAllKeys();
   const appKeys = keys.filter(
-    (k) => k.startsWith('@smartpocketbuddy') || k.startsWith('@smartprobono')
+    (k) =>
+      k.startsWith('@smartpocketbuddy') ||
+      k.startsWith('@smartprobono') ||
+      k.startsWith('@pocketbuddy')
   );
   if (appKeys.length > 0) {
     await AsyncStorage.multiRemove(appKeys);

@@ -2,7 +2,9 @@ export type ScenarioType =
   | 'pulled_over'
   | 'stopped_questioned'
   | 'calling_police'
-  | 'other';
+  | 'other'
+  | 'travel'
+  | 'kid_track';
 
 export interface EmergencyContact {
   name: string;
