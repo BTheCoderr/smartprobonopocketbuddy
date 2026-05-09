@@ -5,3 +5,44 @@
 
 [build.environment]
   NODE_VERSION = "20"
+
+# Next.js static export emits `/route.html`; map clean URLs for PocketBuddy.
+[[redirects]]
+from = "/pocketbuddy"
+to = "/pocketbuddy.html"
+status = 200
+
+[[redirects]]
+from = "/pocketbuddy/"
+to = "/pocketbuddy.html"
+status = 200
+
+[[redirects]]
+from = "/pocketbuddy/privacy"
+to = "/pocketbuddy/privacy.html"
+status = 200
+
+[[redirects]]
+from = "/pocketbuddy/privacy/"
+to = "/pocketbuddy/privacy.html"
+status = 200
+
+[[redirects]]
+from = "/pocketbuddy/terms"
+to = "/pocketbuddy/terms.html"
+status = 200
+
+[[redirects]]
+from = "/pocketbuddy/terms/"
+to = "/pocketbuddy/terms.html"
+status = 200
+
+[[redirects]]
+from = "/pocketbuddy/legal"
+to = "/pocketbuddy/legal.html"
+status = 200
+
+[[redirects]]
+from = "/pocketbuddy/legal/"
+to = "/pocketbuddy/legal.html"
+status = 200
