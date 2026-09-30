@@ -1,27 +1,44 @@
-# SmartProBono Pocket — Marketing Assets
+# SmartProBono — Product Messaging
 
-## App Store Description (Short, Non-Inflammatory)
+## Short description
 
-**SmartProBono Pocket** helps you stay calm and take the right steps during legal or law enforcement interactions.
+**SmartProBono is a personal safety companion for documenting important moments, sharing location with people you trust, and staying organized when something feels uncertain.**
 
-Think of it as AAA for legal situations. One tap launches Safety Mode: your location is shared with a trusted contact, and you get simple, step-by-step guidance designed to reduce stress and keep things calm.
+## Core message
 
-- One-tap Safety Mode
-- Share your location with emergency contacts
-- Calm, on-screen guidance for different situations
-- No legal jargon. No lecturing. Just support when you need it.
+When something happens, people should not have to scramble between multiple apps just to document it and let someone know where they are.
 
-Set up your emergency contact once, and you're ready. Works when you're pulled over, calling for help, or in other stressful legal moments.
+SmartProBono brings those actions into one focused mobile flow:
 
----
+- start a Safety, Travel, or Kid Track session
+- capture location
+- record audio/video when enabled and lawful
+- alert trusted contacts
+- use calm guidance
+- keep a private local history
+- decide what to share and when
 
-## 30-Second Demo Script
+## Positioning
 
-1. **Open the app.** "SmartProBono Pocket — AAA for legal situations."
-2. **Set Emergency Contact.** "First, I add a trusted contact who'll get my location if I need help."
-3. **Tap Safety Mode.** "When I need help, one tap starts Safety Mode."
-4. **Pick a scenario.** "Pulled over, stopped and questioned, or calling police."
-5. **Show Action screen.** "The app grabs my location and sends an alert to my contact. I tap 'View calming guidance'."
-6. **Flip through one or two guidance steps.** "Simple steps — stay calm, keep hands visible. No jargon."
-7. **Show Summary.** "When I'm done, I get a summary I can save for my records."
-8. **Close.** "That's it. One tap, location shared, calm guidance. SmartProBono Pocket."
+Simple enough to use under stress.
+
+Private by default.
+
+Useful beyond one specific type of encounter.
+
+SmartProBono is not emergency dispatch and does not replace professional legal advice.
+
+## App Store link
+
+https://apps.apple.com/us/app/smartprobono/id6759347017
+
+## 30-second demo flow
+
+1. Open SmartProBono.
+2. Show the Home screen and trusted-contact setup.
+3. Start Safety Mode.
+4. Show automatic location capture and the trusted-contact path.
+5. Show recording controls and calm guidance.
+6. End the session and open History.
+7. Show Travel Mode or Family Hub / Kid Track briefly.
+8. Close with: **“Document it. Share when you choose. Stay connected with people you trust.”**
