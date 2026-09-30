@@ -9,9 +9,6 @@ on:
       - '.github/workflows/mobile-v1-1.yml'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   verify-mobile:
     runs-on: ubuntu-latest
@@ -21,8 +18,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: feature/mobile-v1-1-trust-upgrades
 
       - name: Use Node 20
         uses: actions/setup-node@v4
@@ -34,21 +29,11 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Align Expo SDK 54 patch versions
-        run: npx expo install --fix
+      - name: Verify Expo SDK compatibility
+        run: npx expo install --check
 
       - name: Strict TypeScript
         run: npm run typecheck
 
-      - name: Commit Expo-aligned package files
-        working-directory: .
-        run: |
-          if git diff --quiet -- SmartProBonoPocket/package.json SmartProBonoPocket/package-lock.json; then
-            echo "Package files already aligned."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add SmartProBonoPocket/package.json SmartProBonoPocket/package-lock.json
-          git commit -m "chore: align Expo SDK 54 package versions [skip netlify]"
-          git push origin HEAD:feature/mobile-v1-1-trust-upgrades
+      - name: Verify iOS JS bundle
+        run: npx expo export --platform ios --output-dir dist-ci
