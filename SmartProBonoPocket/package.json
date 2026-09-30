@@ -8,7 +8,8 @@
     "ios": "expo run:ios",
     "tunnel": "expo start --tunnel",
     "android": "expo run:android",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
