@@ -12,6 +12,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import * as Location from 'expo-location';
 import { Camera } from 'expo-camera';
+import * as Notifications from 'expo-notifications';
 import { colors } from '../theme/colors';
 import { getEmergencyContact, getAdditionalContacts } from '../storage/contactStorage';
 import { getKidSchedule } from '../storage/kidScheduleStorage';
@@ -147,6 +148,7 @@ export function HealthCheckScreen() {
         let locationStatus = '—';
         let cameraStatus = '—';
         let micStatus = '—';
+        let notificationStatus = '—';
         try {
           const locPerm = await Location.getForegroundPermissionsAsync();
           locationStatus = locPerm.status;
@@ -159,6 +161,10 @@ export function HealthCheckScreen() {
           const micPerm = await Camera.getMicrophonePermissionsAsync();
           micStatus = micPerm.status;
         } catch { /* ignore */ }
+        try {
+          const notificationPerm = await Notifications.getPermissionsAsync();
+          notificationStatus = notificationPerm.status;
+        } catch { /* ignore */ }
 
         const permInfo: Section = {
           title: 'Permissions',
@@ -166,6 +172,7 @@ export function HealthCheckScreen() {
             { label: 'Location', value: locationStatus },
             { label: 'Camera', value: cameraStatus },
             { label: 'Microphone', value: micStatus },
+            { label: 'Notifications', value: notificationStatus },
           ],
         };
 
