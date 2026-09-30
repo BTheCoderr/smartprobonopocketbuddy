@@ -21,6 +21,7 @@ import {
 } from '../storage/kidScheduleStorage';
 import { trackEvent, trackError } from '../lib/analytics';
 import { retryAsync } from '../utils/retry';
+import { syncKidScheduleNotifications } from '../services/notifications';
 import { colors } from '../theme/colors';
 import { Button } from '../components/Button';
 import { InlineError } from '../components/InlineError';
@@ -104,8 +105,19 @@ export function KidScheduleScreen({ navigation }: Props) {
     setSaving(true);
     try {
       await retryAsync(() => saveKidSchedule(schedule));
-      trackEvent('kid_schedule.save_success', { enabled, dayCount: weekDays.length });
+      const remindersReady = await syncKidScheduleNotifications(schedule);
+      trackEvent('kid_schedule.save_success', {
+        enabled,
+        dayCount: weekDays.length,
+        remindersReady,
+      });
       Keyboard.dismiss();
+      if (schedule.enabled && !remindersReady) {
+        toast.show({
+          type: 'info',
+          message: 'Schedule saved. Allow notifications to receive reminders when SmartProBono is closed.',
+        });
+      }
       navigation.goBack();
     } catch (e) {
       trackError('kid_schedule.save_failed', e);
@@ -123,7 +135,7 @@ export function KidScheduleScreen({ navigation }: Props) {
     >
       <Text style={[styles.title, { color: theme.text }]}>Kid schedule</Text>
       <Text style={[styles.subtitle, { color: theme.textMuted }]}>
-        When the app is open on Home at this time on a selected day, you&apos;ll be prompted to start Kid Track.
+        Choose the days and time for Kid Track. With notifications allowed, SmartProBono can remind you even when the app is closed.
       </Text>
 
       <View style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
