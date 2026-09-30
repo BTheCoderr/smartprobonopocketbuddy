@@ -245,6 +245,46 @@ export function subscribeLiveSession(cb: Subscriber): () => void {
   return () => subscribers.delete(cb);
 }
 
+/**
+ * Restore a persisted active session after an app restart.
+ * The native location subscription itself cannot survive process death, so this
+ * rehydrates the saved route and starts a fresh foreground watcher that appends
+ * to the same session record.
+ */
+export async function recoverPersistedLiveSession(): Promise<LiveSessionRecord | null> {
+  if (current?.status === 'active') return current;
+
+  const persisted = await getPersistedActiveSession();
+  if (!persisted || persisted.status !== 'active') return null;
+
+  current = persisted;
+  pointsSincePersist = 0;
+
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status === 'granted') {
+    subscription = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.Balanced,
+        timeInterval: 4000,
+        distanceInterval: 12,
+      },
+      (loc) => {
+        pushPoint(loc);
+        void maybePersist();
+      }
+    );
+  }
+
+  startPersistTimer();
+  notify();
+  trackEvent('session.recovered', {
+    mode: persisted.mode,
+    id: persisted.id,
+    pointCount: persisted.route.length,
+  });
+  return persisted;
+}
+
 /** Recover after app restart: if storage has active session, clear it (watch cannot resume same session). */
 export async function discardStalePersistedSession(): Promise<void> {
   const stale = await getPersistedActiveSession();
