@@ -11,8 +11,10 @@ import {
   InteractionManager,
   ScrollView,
   Alert,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { CompositeNavigationProp, useFocusEffect } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -52,7 +54,9 @@ export function HomeScreen({ navigation }: Props) {
   const [travelArrivalMinutes, setTravelArrivalMinutes] = useState<ArrivalChoice>(0);
   const [starting, setStarting] = useState(false);
   const [recordingEnabled, setRecordingEnabled] = useState(true);
+  const [travelRecordingEnabled, setTravelRecordingEnabled] = useState(true);
   const [calmGuidanceEnabled, setCalmGuidanceEnabled] = useState(true);
+  const [locationReady, setLocationReady] = useState(false);
   const hasContactRef = useRef(false);
   const modalBlockRef = useRef(false);
   const colorScheme = useColorScheme();
@@ -89,11 +93,14 @@ export function HomeScreen({ navigation }: Props) {
           setRecordingEnabled(recEnabled);
           const calm = await getCalmGuidanceEnabled();
           setCalmGuidanceEnabled(calm);
+          const locationPermission = await Location.getForegroundPermissionsAsync();
+          setLocationReady(locationPermission.status === 'granted');
         } catch {
           setHasContact(false);
           setShowDisclosure(false);
           setRecordingEnabled(true);
           setCalmGuidanceEnabled(true);
+          setLocationReady(false);
         }
       };
       check();
@@ -106,6 +113,7 @@ export function HomeScreen({ navigation }: Props) {
       void getEmergencyContact().then((c) => setHasContact(!!c));
       void getRecordingEnabled().then(setRecordingEnabled);
       void getCalmGuidanceEnabled().then(setCalmGuidanceEnabled);
+      void Location.getForegroundPermissionsAsync().then(({ status }) => setLocationReady(status === 'granted'));
     }, [])
   );
 
@@ -155,6 +163,7 @@ export function HomeScreen({ navigation }: Props) {
       return;
     }
     setTravelArrivalMinutes(0);
+    setTravelRecordingEnabled(recordingEnabled);
     setShowTravelConfirm(true);
   };
 
@@ -195,9 +204,9 @@ export function HomeScreen({ navigation }: Props) {
     try {
       const { locationLink } = await startSession('travel', {
         arrivalCheckMinutes: travelArrivalMinutes === 0 ? null : travelArrivalMinutes,
-        recordingEnabled,
+        recordingEnabled: travelRecordingEnabled,
         calmGuidanceEnabled,
-        recordingMode: 'video',
+        recordingMode: travelRecordingEnabled ? 'video' : 'audio',
       });
       setShowTravelConfirm(false);
       navigation.navigate('Active', {
@@ -293,6 +302,29 @@ export function HomeScreen({ navigation }: Props) {
             Set your emergency contact to get started
           </Text>
         )}
+      </View>
+
+      <View style={[styles.readinessCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Text style={[styles.readinessTitle, { color: theme.text }]}>READINESS</Text>
+        <View style={styles.readinessGrid}>
+          {[
+            { label: 'Trusted contact', ready: hasContact },
+            { label: 'Location', ready: locationReady },
+            { label: 'Recording', ready: recordingEnabled },
+            { label: 'Guidance', ready: calmGuidanceEnabled },
+          ].map((item) => (
+            <View key={item.label} style={styles.readinessItem}>
+              <Ionicons
+                name={item.ready ? 'checkmark-circle' : 'alert-circle-outline'}
+                size={18}
+                color={item.ready ? theme.primaryAccent : theme.textMuted}
+              />
+              <Text style={[styles.readinessText, { color: theme.text }]}>
+                {item.label}
+              </Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <TouchableOpacity
@@ -519,7 +551,19 @@ export function HomeScreen({ navigation }: Props) {
                   );
                 })}
               </View>
-              <Text style={[styles.bullet, { color: theme.text }]}>• Start video recording</Text>
+              <View style={styles.travelRecordingRow}>
+                <View style={styles.travelRecordingTextWrap}>
+                  <Text style={[styles.travelRecordingTitle, { color: theme.text }]}>Record video during Travel Mode</Text>
+                  <Text style={[styles.travelRecordingHint, { color: theme.textMuted }]}>
+                    Optional. Turn this off when you only want route tracking and check-ins.
+                  </Text>
+                </View>
+                <Switch
+                  value={travelRecordingEnabled}
+                  onValueChange={setTravelRecordingEnabled}
+                  accessibilityLabel="Record video during Travel Mode"
+                />
+              </View>
               <Text style={[styles.bullet, { color: theme.text }]}>• Display calm guidance</Text>
             </View>
             <Button
@@ -602,6 +646,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 12,
   },
+  readinessCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: SECTION_SPACING,
+  },
+  readinessTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 12,
+  },
+  readinessGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  readinessItem: {
+    width: '47%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  readinessText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   familyCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -658,6 +729,26 @@ const styles = StyleSheet.create({
   kidTrackButtonText: {
     fontSize: 18,
     fontWeight: '700',
+  },
+  travelRecordingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginTop: 14,
+    marginBottom: 10,
+  },
+  travelRecordingTextWrap: {
+    flex: 1,
+  },
+  travelRecordingTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  travelRecordingHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 3,
   },
   arrivalRow: {
     flexDirection: 'row',
