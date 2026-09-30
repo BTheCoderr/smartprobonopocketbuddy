@@ -1,103 +1,96 @@
-# Catching Up — SmartPocketBuddy
+# SmartProBono Mobile — Current Handoff
 
-Use this when resuming work or handing off. Last updated: Feb 18, 2026.
+Use this file when resuming mobile work.
 
----
+## Product status
 
-## Project Location
+**SmartProBono is shipped on the Apple App Store.**
 
-```
-/Users/baheemferrell/Desktop/smartprobonopocketbuddy/SmartProBonoPocket
-```
+App Store:
+https://apps.apple.com/us/app/smartprobono/id6759347017
 
-**GitHub:** `https://github.com/BTheCoderr/smartprobonopocketbuddy` (connect with `git remote add origin` when ready)
+The public product name is **SmartProBono**. The repository/directory still contains older **Pocket Buddy / SmartPocketBuddy** naming from the original MVP.
 
----
+## Current app structure
 
-## Quick Start
+### Main tabs
+- Home
+- Record
+- History
+- Settings
 
-```bash
-cd /Users/baheemferrell/Desktop/smartprobonopocketbuddy/SmartProBonoPocket
-npx expo start --lan
-```
+### Stack flows
+- Gate
+- Onboarding
+- Family Hub
+- Emergency Contact / Trusted Circle
+- Kid Schedule
+- Active Safety / Travel / Kid Track session
+- Health Check
 
-Scan QR code with Expo Go. Use `--clear` if assets or native modules misbehave.
+## Current capabilities
 
----
+- guided onboarding
+- trusted emergency contact + additional trusted contacts
+- Safety Mode
+- Travel Mode
+- Kid Track
+- local route/session persistence
+- optional audio/video recording
+- calm guidance
+- local history
+- Family Hub
+- Kid Track in-app scheduling prompts
+- read-only diagnostics
+- system light/dark theme
+- EAS production build/update configuration
 
-## What’s Built (MVP Checklist ✓)
+## Architecture
 
-| # | Feature | Status |
-|---|---------|--------|
-| 1 | **One-tap Safety Mode** — Big button, 2 taps (Start → Confirm), no login | ✅ |
-| 2 | **Emergency Contact + Auto Location** — GPS, map link, SMS: *"I'm in Safety Mode. My location: [link]. Please stay available."* | ✅ |
-| 3 | **Automatic Recording** — Toggle in Settings, auto-start in Safety Mode, subtle dot + timer, save locally, Share/Done | ✅ |
-| 4 | **De-escalation Guidance** — Checklist (Hands visible, Speak slowly, etc.) + script: *"Officer, I want to cooperate. My license and registration are [location]. May I reach for them?"* | ✅ |
-| 5 | **Event History** — Last 10 events, time, location link, Share recording; stored locally, no cloud | ✅ |
-
----
-
-## Navigation
-
-- **Bottom Tabs:** Home | Record | History | Settings
-- **Stack Screens:** SetupContact, Active (Safety Mode), Recording (standalone)
-- **Flow:** Home → Safety Mode → Confirm → Active (checklist + recording) → End → Share/Done → History
-
----
-
-## Key Files
+Core state remains local-first.
 
 | Purpose | Path |
-|---------|------|
+| --- | --- |
 | App entry | `App.tsx` |
-| Navigation | `src/navigation/RootNavigator.tsx`, `TabNavigator.tsx` |
-| Screens | `src/screens/HomeScreen.tsx`, `ActiveScreen.tsx`, `RecordingScreen.tsx`, `HistoryScreen.tsx`, `SettingsScreen.tsx`, `SetupContactScreen.tsx` |
-| Theme | `src/theme/colors.ts` |
-| Storage | `src/storage/settingsStorage.ts`, `contactStorage.ts`, `recordingStorage.ts`, `eventStorage.ts` |
-| Components | `src/components/Button.tsx`, `Card.tsx` |
-| Logo | `src/assets/logo.png`, `assets/logo.png` |
+| Root navigation | `src/navigation/RootNavigator.tsx` |
+| Main tabs | `src/navigation/TabNavigator.tsx` |
+| Screens | `src/screens/` |
+| Session runtime | `src/services/liveSessionRuntime.ts` |
+| Session orchestration | `src/services/sessionService.ts` |
+| Contacts | `src/storage/contactStorage.ts` |
+| Events/history | `src/storage/eventStorage.ts` |
+| Recordings | `src/storage/recordingStorage.ts` |
+| Settings | `src/storage/settingsStorage.ts` |
+| Kid schedule | `src/storage/kidScheduleStorage.ts` |
+| Persisted live session | `src/storage/liveSessionStorage.ts` |
+| App config | `app.json` |
+| EAS profiles | `eas.json` |
 
----
-
-## Brand / Design
-
-- **Primary:** Deep navy `#0F2B46`
-- **Accent:** Teal `#3FAE9D`
-- **Background:** Soft off-white `#F7F9FB`
-- **Corners:** 16–20px
-- **Tone:** Calm, institutional
-
----
-
-## Known Issues & Fixes
-
-1. **NativeSharedObjectNotFoundException** — Addressed with defensive `try/catch` around recorder in `ActiveScreen` and `RecordingScreen`. If it recurs, fully restart Expo Go.
-2. **AsyncStorage / asset resolve errors** — Use `npx expo start --lan --clear`. Logo is at `assets/logo.png` and `src/assets/logo.png`.
-
----
-
-## Not Yet Built
-
-- Paperwork mode
-- Eviction flow
-- Chat AI
-- Legal database
-- Siri Shortcuts (requires full app build, not Expo Go)
-
----
-
-## Commands
+## Resume commands
 
 ```bash
-# Start dev server
-npx expo start --lan
-
-# Start with cache clear
-npx expo start --lan --clear
-
-# Connect to GitHub
-git remote add origin https://github.com/BTheCoderr/smartprobonopocketbuddy.git
-git add .
-git commit -m "Initial commit - SmartPocketBuddy app"
-git push -u origin main
+npm install
+npx expo start
 ```
+
+For a cache reset:
+
+```bash
+npm run start:clear
+```
+
+## Next release focus
+
+Do not rebuild the MVP.
+
+Focus on:
+
+1. physical-device regression across Safety, Travel, and Kid Track
+2. session interruption/recovery
+3. permission-denied behavior
+4. Family Hub/Kid Schedule polish
+5. automated tests around storage/session lifecycle
+6. accessibility pass
+7. current App Store screenshots + release notes
+
+See the repository-level `NEXT_STEPS.md` for the current release checklist.
