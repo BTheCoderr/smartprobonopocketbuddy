@@ -1,0 +1,36 @@
+name: SmartProBono mobile v1.1 checks
+
+on:
+  push:
+    branches:
+      - feature/mobile-v1-1-trust-upgrades
+    paths:
+      - 'SmartProBonoPocket/**'
+      - '.github/workflows/mobile-v1-1.yml'
+  workflow_dispatch:
+
+jobs:
+  verify-mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: SmartProBonoPocket
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.4'
+          cache: npm
+          cache-dependency-path: SmartProBonoPocket/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify Expo dependency versions
+        run: npx expo install --check
+
+      - name: Strict TypeScript
+        run: npm run typecheck
