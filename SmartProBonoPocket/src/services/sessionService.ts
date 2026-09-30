@@ -11,6 +11,7 @@ import { getAlertPhoneNumbers } from '../storage/contactStorage';
 import { getRecordingEnabled, getCalmGuidanceEnabled } from '../storage/settingsStorage';
 import { trackEvent, trackError } from '../lib/analytics';
 import { retryAsync } from '../utils/retry';
+import { cancelTravelArrivalCheck, scheduleTravelArrivalCheck } from './notifications';
 import {
   ensureLiveSession,
   startLiveSession,
@@ -19,6 +20,7 @@ import {
   startSafetySessionTracking,
   startTravelSessionTracking,
   startKidTrackSessionTracking,
+  recoverPersistedLiveSession,
   type LiveSessionRuntimeState,
   type StopOptions,
 } from './liveSessionRuntime';
@@ -296,16 +298,66 @@ export async function startSession(
     }
   }
 
+  if (type === 'travel' && arrivalCheckMinutes) {
+    const scheduled = await scheduleTravelArrivalCheck(arrivalCheckMinutes);
+    if (!scheduled) {
+      trackEvent('session.travel_reminder_unavailable', {
+        id,
+        minutes: arrivalCheckMinutes,
+      });
+    }
+  }
+
   trackEvent('session.start_success', { type, id, hasLocation: !!locationLink });
 
   notify();
   return { locationLink, snapshot: getSessionSnapshot() };
 }
 
+/**
+ * Rehydrate the last active session after process interruption.
+ * Alerts are not sent again during recovery.
+ */
+export async function recoverPersistedSession(): Promise<LiveSessionRecord | null> {
+  const restored = await recoverPersistedLiveSession();
+  if (!restored) return null;
+
+  currentSession = {
+    id: `recovered_${restored.id}`,
+    type: restored.mode,
+    startedAt: Date.parse(restored.startedAt) || Date.now(),
+    arrivalCheckMinutes:
+      restored.mode === 'travel' || restored.mode === 'kid_track'
+        ? ((restored.arrivalCheckMinutes as ArrivalCheckMinutes) ?? null)
+        : null,
+    recordingEnabled: await getRecordingEnabled(),
+    calmGuidanceEnabled: await getCalmGuidanceEnabled(),
+    recordingMode: restored.mode === 'travel' ? 'video' : 'audio',
+    sendAlerts: false,
+    locationLink: restored.initialLocationLink,
+    isActive: true,
+    routePointCount: restored.route.length,
+    liveSessionId: restored.id,
+  };
+
+  ensureRuntimeSubscription();
+  ensureAppStateWatcher();
+  notify();
+  trackEvent('session.recovery_ready', {
+    type: restored.mode,
+    id: restored.id,
+    pointCount: restored.route.length,
+  });
+  return restored;
+}
+
 /** Stops live tracking via `stopLiveSession`; returns the final record for callers that persist history elsewhere. */
 export async function stopSession(options?: StopOptions): Promise<LiveSessionRecord | null> {
   const stoppedType = currentSession?.type;
   const rec = await stopLiveSession(options);
+  if (stoppedType === 'travel') {
+    await cancelTravelArrivalCheck();
+  }
   currentSession = null;
   runtimeState = null;
   cleanupRuntimeSubscriptionIfIdle();
