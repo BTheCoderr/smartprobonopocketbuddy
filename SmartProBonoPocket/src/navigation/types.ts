@@ -3,6 +3,7 @@ import { ScenarioType } from '../types';
 export type RootStackParamList = {
   Gate: undefined;
   Onboarding: undefined;
+  Recovery: undefined;
   Main: undefined;
   FamilyHub: undefined;
   SetupContact: undefined;
