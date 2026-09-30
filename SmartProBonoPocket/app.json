@@ -62,7 +62,8 @@
           "cameraPermission": "SmartProBono uses the camera to record video during safety events when you enable it in settings.",
           "microphonePermission": "SmartProBono uses the microphone when recording video."
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
