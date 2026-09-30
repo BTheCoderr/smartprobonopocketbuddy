@@ -6,6 +6,7 @@ import { RootStackParamList } from './types';
 import { TabNavigator } from './TabNavigator';
 import { GateScreen } from '../screens/GateScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
+import { RecoveryScreen } from '../screens/RecoveryScreen';
 import { SetupContactScreen } from '../screens/SetupContactScreen';
 import { KidScheduleScreen } from '../screens/KidScheduleScreen';
 import { FamilyHubScreen } from '../screens/FamilyHubScreen';
@@ -54,6 +55,11 @@ export function RootNavigator() {
         <Stack.Screen
           name="Onboarding"
           component={OnboardingScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Recovery"
+          component={RecoveryScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen
