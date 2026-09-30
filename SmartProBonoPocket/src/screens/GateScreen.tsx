@@ -3,7 +3,7 @@ import { View, ActivityIndicator, StyleSheet, useColorScheme, Image, Text } from
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { hasCompletedOnboarding } from '../storage/settingsStorage';
-import { discardStalePersistedSession } from '../services/liveSessionRuntime';
+import { getPersistedActiveSession } from '../storage/liveSessionStorage';
 import { retryAsync } from '../utils/retry';
 import { colors } from '../theme/colors';
 
@@ -19,22 +19,20 @@ export function GateScreen({ navigation }: Props) {
     let mounted = true;
     const run = async () => {
       try {
-        await discardStalePersistedSession();
-      } catch {
-        // Stale session cleanup failed; safe to continue
-      }
-      try {
-        const done = await retryAsync(() => hasCompletedOnboarding());
+        const [done, persisted] = await Promise.all([
+          retryAsync(() => hasCompletedOnboarding()),
+          getPersistedActiveSession(),
+        ]);
         if (!mounted) return;
-        if (done) {
-          navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
-        } else {
+        if (!done) {
           navigation.replace('Onboarding');
+        } else if (persisted?.status === 'active') {
+          navigation.replace('Recovery');
+        } else {
+          navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
         }
       } catch {
-        if (mounted) {
-          navigation.replace('Onboarding');
-        }
+        if (mounted) navigation.replace('Onboarding');
       }
     };
     run();
