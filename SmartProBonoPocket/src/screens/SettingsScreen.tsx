@@ -23,8 +23,6 @@ import {
   setAutoShare,
   getPresetMode,
   setPresetMode,
-  getPipModeEnabled,
-  setPipModeEnabled,
   getCalmGuidanceEnabled,
   setCalmGuidanceEnabled,
   type PresetMode,
@@ -44,7 +42,6 @@ export function SettingsScreen({ navigation }: Props) {
   const toast = useToast();
   const [recordingOn, setRecordingOn] = useState(true);
   const [autoShareOn, setAutoShareOn] = useState(false);
-  const [pipOn, setPipOn] = useState(false);
   const [hasContact, setHasContact] = useState(false);
   const [preset, setPreset] = useState<PresetMode>('audio');
   const [calmGuidanceOn, setCalmGuidanceOn] = useState(true);
@@ -59,7 +56,6 @@ export function SettingsScreen({ navigation }: Props) {
     void getEmergencyContact().then((c) => setHasContact(!!c));
     void getRecordingEnabled().then(setRecordingOn);
     void getAutoShare().then(setAutoShareOn);
-    void getPipModeEnabled().then(setPipOn);
     void getPresetMode().then(setPreset);
     void getCalmGuidanceEnabled().then(setCalmGuidanceOn);
   }, []);
@@ -83,22 +79,6 @@ export function SettingsScreen({ navigation }: Props) {
   const handleCalmGuidanceToggle = (v: boolean) => {
     setCalmGuidanceOn(v);
     setCalmGuidanceEnabled(v);
-  };
-
-  const handlePipToggle = (v: boolean) => {
-    if (v) {
-      Alert.alert(
-        'Coming soon',
-        'Floating window (PiP) mode will let you see recording in a small window when you switch apps—like Facebook, FaceTime, or WhatsApp. Enable this when your state allows it. Requires a future app update.',
-        [
-          { text: 'Cancel', onPress: () => {}, style: 'cancel' },
-          { text: 'Enable when ready', onPress: () => { setPipOn(true); setPipModeEnabled(true); } },
-        ]
-      );
-    } else {
-      setPipOn(false);
-      setPipModeEnabled(false);
-    }
   };
 
   const handleDeleteRecordings = () => {
@@ -181,26 +161,15 @@ export function SettingsScreen({ navigation }: Props) {
         Record tab uses your preset. Video (with audio) when Video/Audio+Video selected. Safety Mode uses audio for now. Video stops when you leave the app; audio continues in background.
       </Text>
       <View style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[styles.rowLabel, { color: theme.text }]}>Floating window (PiP)</Text>
-        <Switch
-          value={pipOn}
-          onValueChange={handlePipToggle}
-          accessibilityLabel="Floating window PiP"
-        />
-      </View>
-      <Text style={[styles.rowHint, { color: theme.textMuted }]}>
-        When on, a small recording window stays visible when you switch apps (like FaceTime/WhatsApp). Opt-in if your state allows. Coming soon.
-      </Text>
-      <View style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.rowLabel, { color: theme.text }]}>Recording enabled</Text>
         <Switch value={recordingOn} onValueChange={handleRecordingToggle} accessibilityLabel="Recording enabled" />
       </View>
       <View style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[styles.rowLabel, { color: theme.text }]}>Auto-share to emergency contact after stop</Text>
-        <Switch value={autoShareOn} onValueChange={handleAutoShareToggle} accessibilityLabel="Auto-share after stop" />
+        <Text style={[styles.rowLabel, { color: theme.text }]}>Prompt to share after recording</Text>
+        <Switch value={autoShareOn} onValueChange={handleAutoShareToggle} accessibilityLabel="Prompt to share after recording" />
       </View>
       <Text style={[styles.rowHint, { color: theme.textMuted }]}>
-        When on, the share dialog will open automatically after you stop recording. Default: OFF.
+        When on, SmartProBono opens the system share sheet after you stop. You still choose the recipient and confirm the share. Default: OFF.
       </Text>
       <View style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.rowLabel, { color: theme.text }]}>Calm guidance on Active</Text>
@@ -231,44 +200,49 @@ export function SettingsScreen({ navigation }: Props) {
         Keeps event history. Or select items in History to delete specific ones.
       </Text>
 
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>Screenshots</Text>
-      <TouchableOpacity
-        style={[styles.deleteButton, { borderColor: theme.border }]}
-        accessibilityRole="button"
-        accessibilityLabel="Reset app for screenshots"
-        onPress={() => {
-          Alert.alert(
-            'Reset app for screenshots',
-            'This will clear all data and return you to the first-run experience. Use this before capturing App Store screenshots.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Reset',
-                style: 'destructive',
-                onPress: () => {
-                  resetAppForScreenshots()
-                    .then(() => {
-                      navigation
-                        .getParent<NativeStackNavigationProp<RootStackParamList>>()
-                        ?.reset({ index: 0, routes: [{ name: 'Gate' }] });
-                    })
-                    .catch((err) => {
-                      console.error('resetAppForScreenshots failed:', err);
-                      toast.show({ type: 'error', message: 'Could not reset. Please try again.' });
-                    });
-                },
-              },
-            ]
-          );
-        }}
-      >
-        <Text style={[styles.deleteButtonText, { color: theme.textMuted }]}>
-          Reset app for screenshots
-        </Text>
-      </TouchableOpacity>
-      <Text style={[styles.rowHint, { color: theme.textMuted, marginTop: 4 }]}>
-        Clears all data and shows onboarding again. For App Store submission.
-      </Text>
+      {__DEV__ && (
+        <>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Screenshots</Text>
+                <TouchableOpacity
+                  style={[styles.deleteButton, { borderColor: theme.border }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reset app for screenshots"
+                  onPress={() => {
+                    Alert.alert(
+                      'Reset app for screenshots',
+                      'This will clear all data and return you to the first-run experience. Use this before capturing App Store screenshots.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Reset',
+                          style: 'destructive',
+                          onPress: () => {
+                            resetAppForScreenshots()
+                              .then(() => {
+                                navigation
+                                  .getParent<NativeStackNavigationProp<RootStackParamList>>()
+                                  ?.reset({ index: 0, routes: [{ name: 'Gate' }] });
+                              })
+                              .catch((err) => {
+                                console.error('resetAppForScreenshots failed:', err);
+                                toast.show({ type: 'error', message: 'Could not reset. Please try again.' });
+                              });
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                >
+                  <Text style={[styles.deleteButtonText, { color: theme.textMuted }]}>
+                    Reset app for screenshots
+                  </Text>
+                </TouchableOpacity>
+                <Text style={[styles.rowHint, { color: theme.textMuted, marginTop: 4 }]}>
+                  Clears all data and shows onboarding again. For App Store submission.
+                </Text>
+          
+                  </>
+      )}
 
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Siri</Text>
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
