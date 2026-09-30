@@ -1,5 +1,12 @@
 # SmartProBono — Mobile Safety Companion
 
+[![CI](https://github.com/BTheCoderr/smartprobonopocketbuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/BTheCoderr/smartprobonopocketbuddy/actions/workflows/ci.yml)
+![App Store](https://img.shields.io/badge/App%20Store-Live-000000?logo=apple)
+![Expo](https://img.shields.io/badge/Expo-54-000020?logo=expo)
+![React Native](https://img.shields.io/badge/React%20Native-0.81-61DAFB?logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)
+
+
 <!-- repo-intro:start -->
 **Project snapshot:** SmartProBono is a shipped iOS safety companion that helps people document important moments, share location with trusted contacts, and follow calm, structured guidance during stressful situations.
 
@@ -28,6 +35,22 @@
 | Health Check | Read-only diagnostic view for app version, permissions, session state, contacts, settings, and schedule |
 | Onboarding | Guided setup for contact, recording disclosure/preferences, and location permission |
 | Support web | Next.js marketing, privacy, support, and Pocket Buddy legal/support pages |
+
+## Architecture
+
+```text
+iPhone / iPad (Expo + React Native)
+        │
+        ├── Trusted Circle
+        ├── Safety / Travel / Kid Track sessions
+        ├── Location + Contacts
+        ├── Audio / Camera / local files
+        └── explicit platform share flows
+
+web-next/ ──► Next.js support / privacy / marketing
+```
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full local-first data and release model.
 
 ## Current mobile architecture
 
@@ -97,6 +120,21 @@ npm install
 npm run dev
 ```
 
+## Repository guide
+
+- [CHANGELOG.md](CHANGELOG.md) — production release notes
+- [ROADMAP.md](ROADMAP.md) — shipped, improving, and exploring
+- [docs/README.md](docs/README.md) — current vs. historical documentation
+- [CONTRIBUTING.md](CONTRIBUTING.md) — development expectations
+- [SECURITY.md](SECURITY.md) — vulnerability and privacy guidance
+- [.github/workflows/ci.yml](.github/workflows/ci.yml) — automated mobile + support-site verification
+
+## Repository quality gates
+
+Pull requests now run mobile TypeScript verification and a production build of the current Next.js support site. Dependabot monitors both npm projects.
+
+**GitHub merge, EAS/App Store release, and Netlify publication are separate actions.**
+
 ## Product status
 
 **Shipped.** SmartProBono is publicly available on the Apple App Store.
@@ -108,3 +146,8 @@ The repository also contains work that may be ahead of the currently published s
 SmartProBono is a support and documentation tool. It is not a substitute for emergency services, a lawyer, or individualized legal advice.
 
 Recording and privacy laws vary by jurisdiction. Recording features are presented with user-facing disclosures and should only be used where lawful.
+
+
+## License
+
+Copyright © 2026 Baheem Ferrell. All rights reserved. This public repository is viewable for portfolio, review, and collaboration purposes and is not released under an open-source license. See [LICENSE](LICENSE).
