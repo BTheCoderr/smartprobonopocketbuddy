@@ -29,8 +29,18 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Verify Expo dependency versions
-        run: npx expo install --check
+      - name: Align Expo SDK 54 patch versions
+        run: npx expo install --fix
 
       - name: Strict TypeScript
         run: npm run typecheck
+
+      - name: Save Expo-aligned package files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: expo-aligned-package-files
+          path: |
+            SmartProBonoPocket/package.json
+            SmartProBonoPocket/package-lock.json
+          if-no-files-found: error
