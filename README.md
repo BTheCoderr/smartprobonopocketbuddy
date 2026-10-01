@@ -1,9 +1,5 @@
 # SmartProBono — Mobile Safety Companion
 
-<p align="center">
-  <img src="docs/reference/screenshots/github-social-preview.jpg" alt="SmartProBono personal safety companion overview" width="100%" />
-</p>
-
 
 [![CI](https://github.com/BTheCoderr/smartprobonopocketbuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/BTheCoderr/smartprobonopocketbuddy/actions/workflows/ci.yml)
 ![App Store](https://img.shields.io/badge/App%20Store-Live-000000?logo=apple)
